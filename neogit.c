@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #define GLOBAL 1
 #define LOCAL 0
 int IS_GLOBAL = LOCAL;
@@ -50,13 +51,52 @@ void config(char* input[])
     }
     fclose(memory);
 }
-void init()
-{
+int find_file(const char *directory, const char *search_name) {
+    struct dirent *entry;
+    DIR *dp;
+
+    // Open the directory
+    dp = opendir(directory);
+    if (dp == NULL) {
+        perror("opendir");
+        return -1;
+    }
+
+    // Read the directory entries
+    while ((entry = readdir(dp)) != NULL) {
+        if (strcmp(entry->d_name, search_name) == 0) {
+            // Found the file
+            closedir(dp);
+            return 1;
+        }
+    }
+
+    // Close the directory stream
+    closedir(dp);
+    return 0;
+}
+// think about what is needed to add in .neogit directory when you are making it
+void init() {
     char currentDirectory[100];
     getcwd(currentDirectory, sizeof(currentDirectory));
-    DIR* crdir = opendir(currentDirectory);
-
-
+    int exist_neogit = find_file(currentDirectory, ".neogit");
+    if (exist_neogit) {
+        printf("noegit is already initialized in this folder!\n");
+        return;
+    }
+    char neoGitDir[100];
+    strcpy(neoGitDir, currentDirectory);
+#ifdef _WIN32
+    strcat(neoGitDir, "\\.neogit"); // Use backslash for Windows paths
+#else
+    strcat(neoGitDir, "/.neogit"); // Use forward slash for Unix paths
+#endif
+    mkdir(neoGitDir);
+#ifdef _WIN32
+    // Set the directory as hidden on Windows
+    SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
+#endif
+    printf("Git init is completed! The '.neogit' directory is now hidden.\n");
 }
 int check_is_global(char*, int*);
 int main(int argc, char *argv[])
