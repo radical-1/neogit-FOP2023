@@ -75,7 +75,53 @@ int find_file(const char *directory, const char *search_name) {
     closedir(dp);
     return 0;
 }
+//this part will be completed soon
+void make_branch(char branchName[], char neogitDir[])
+{
+    char branchAddress[100];
+    #ifdef _WIN32
+            strcpy(branchAddress, "\\.");
+    #else
+            strcpy(branchAddress, "/.");
+    #endif
+    strcat(branchAddress, branchName);
+    mkdir(branchAddress);
+    #ifdef _WIN32
+            SetFileAttributes(branchAddress, FILE_ATTRIBUTE_HIDDEN);
+    #endif
+}
 // think about what is needed to add in .neogit directory when you are making it
+void Open_dirctories_for_init(DIR* Repo, char neogitDir[]) 
+{
+    char commit[100];
+    char stage[100];
+    char Repository[100];
+    strcpy(commit, neogitDir);
+    strcpy(stage, neogitDir);
+    strcpy(Repository, neogitDir);
+    make_branch("master", neogitDir);
+    #ifdef _WIN32
+            strcat(commit, "\\.commits");
+            strcat(stage, "\\.stage");
+            strcat(Repository, "\\Local_Repository");
+    #else
+            strcat(commit, "/.commits");
+            strcat(stage, "/.stage");
+            strcat(Repository, "/Local_Repository");
+            // using slash for unix path
+
+    #endif
+    #ifdef _WIN32
+            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributes(Repository, FILE_ATTRIBUTE_HIDDEN);
+            // this part is for windows
+    #endif
+    mkdir(commit);
+    mkdir(stage);
+    mkdir(Repository);
+
+}
 void init() {
     char currentDirectory[100];
     getcwd(currentDirectory, sizeof(currentDirectory));
@@ -96,6 +142,8 @@ void init() {
     // Set the directory as hidden on Windows
     SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
 #endif
+    DIR *Repo = opendir(neoGitDir);
+    Open_dirctories_for_init(Repo, neoGitDir);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
 int check_is_global(char*, int*);
