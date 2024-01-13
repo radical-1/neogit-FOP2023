@@ -96,7 +96,7 @@ void init() {
     // Set the directory as hidden on Windows
     SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
 #endif
-    printf("Git init is completed! The '.neogit' directory is now hidden.\n");
+    printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
 int check_is_global(char*, int*);
 int main(int argc, char *argv[])
