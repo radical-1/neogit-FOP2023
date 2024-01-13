@@ -79,8 +79,9 @@ int find_file(const char *directory, const char *search_name) {
 void make_branch(char branchName[], char neogitDir[])
 {
     char branchAddress[100];
+    strcpy(branchAddress, neogitDir);
     #ifdef _WIN32
-            strcpy(branchAddress, "\\.");
+            strcat(branchAddress, "\\.");
     #else
             strcpy(branchAddress, "/.");
     #endif
@@ -111,15 +112,14 @@ void Open_dirctories_for_init(DIR* Repo, char neogitDir[])
             // using slash for unix path
 
     #endif
-    #ifdef _WIN32
-            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
-            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
-            SetFileAttributes(Repository, FILE_ATTRIBUTE_HIDDEN);
-            // this part is for windows
-    #endif
     mkdir(commit);
     mkdir(stage);
     mkdir(Repository);
+    #ifdef _WIN32
+            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
+            // this part is for windows
+    #endif
 
 }
 void init() {
