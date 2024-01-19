@@ -46,11 +46,49 @@ int find_file(const char *directory, const char *search_name) {
 // base setting
 void information(char* input[])
 {
-    char cwd[100];
-    getcwd(cwd, 100);
-    char mem[100];
-
-    
+    char cwd[200];
+    getcwd(cwd, 200);
+    if (IS_GLOBAL == LOCAL) {
+        if (find_file(cwd, ".neogit") == 0) {
+            printf(".neogit not found in current working directory. Please run `neogit init` first\n");
+            return;
+        }
+    }
+    int MOD;
+    int EMAIL = 1;
+    int NAME = 0;
+    if (strcmp(input[0], "user.name") == 0)
+        MOD = NAME;
+    else if (strcmp(input[0], "user.email") == 0)
+        MOD = EMAIL;
+    else {
+        printf("INVALID INPUTS!\n");
+        return;
+    }
+    if (IS_GLOBAL == GLOBAL) {
+        FILE* GLOB = fopen("GLOBAL_info.txt", "r+");
+        if (MOD == NAME) {
+            fprintf(GLOB, "user.name = %s", input[1]);
+        }
+        else if (MOD == EMAIL) {
+            char ch[200];
+            fgets(ch, 200, GLOB);
+            fprintf(GLOB, "user.email = %s", input[1]);
+        }
+        fclose(GLOB);
+    }
+    char local_info[500];
+    sprintf (local_info, "%s/.neogit/LOCAL_info.txt", cwd);
+    FILE* LOC  = fopen(local_info, "r+");
+    if (MOD == NAME) {
+            fprintf(LOC, "user.name = %s", input[1]);
+        }
+        else if (MOD == EMAIL) {
+            char ch[200];
+            fgets(ch, 200, LOC);
+            fprintf(LOC, "user.email = %s", input[1]);
+        }
+        fclose(LOC);
 }
 void ALIAS(char* input[])
 {
@@ -103,42 +141,28 @@ void Open_dirctories_for_init(char neogitDir[])
     // using slash for unix path
 }
 void init() {
-    char currentDirectory[200];
-    getcwd(currentDirectory, sizeof(currentDirectory));
-    int exist_neogit = find_file(currentDirectory, ".neogit");
+    char cwd[200];
+    getcwd(cwd, sizeof(cwd));
+    int exist_neogit = find_file(cwd, ".neogit");
     if (exist_neogit) {
         printf("noegit is already initialized in this folder!\n");
         return;
     }
-    char neoGitDir[200];
-    sprintf(neoGitDir, "%s/.neogit", currentDirectory);
+    string neoGitDir = make_string(1000);
+    sprintf(neoGitDir, "%s/.neogit", cwd);
     mkdir(neoGitDir, 0775);
     Open_dirctories_for_init(neoGitDir);
+    char local_info[500];
+    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", cwd);
+    FILE* LOCAL_INFO = fopen(local_info, "w");
+    fprintf(LOCAL_INFO, "user.name =\nuser.email =\n");
+    fclose(LOCAL_INFO);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
 int check_is_global(char*, int*);
 int main(int argc, char *argv[])
 {    
     int crt_arg = 1; //current argument
-    FILE* GLOBAL_ALIAS = fopen("GLOBAL_alias.txt", "r");
-    if (GLOBAL_ALIAS) {
-        string tmp = make_string(200);
-        while(fgets(tmp, sizeof(tmp), GLOBAL_ALIAS)) {
-            char alias[200];
-            sscanf(tmp, "%s", alias);
-            if (strcmp(alias, argv[crt_arg]) == 0) {
-                tmp += (strlen(alias) + 3);
-                int idx = 0;
-                while (strlen(argv[crt_arg + idx + 1])) {
-                    ssscanf(tmp, "%s", argv[crt_arg + idx]);
-                    tmp += (strlen(argv[crt_arg + idx]) + 1);
-                    idx++;
-                }
-                break;
-            }
-        }
-        remove_string(tmp);
-    }
     if (strcmp(argv[crt_arg], "init") == 0) {
         init();
         crt_arg++;
@@ -146,7 +170,6 @@ int main(int argc, char *argv[])
     if (strcmp(argv[crt_arg], "config") == 0) {
         crt_arg++;
         check_is_global(argv[crt_arg], &crt_arg);
-        printf("%s\n", argv[crt_arg]);
         if (strncmp(argv[crt_arg], "alias", 5) == 0) {
             ALIAS(&argv[crt_arg]);
         }
@@ -156,9 +179,9 @@ int main(int argc, char *argv[])
     printf("end of our project!\n");
     return 0;
 }
-int check_is_global(char input[], int* crt_arg)
+int check_is_global(char argv[], int* crt_arg)
 {
-    if(strcmp(input, "-global") == 0) {
+    if(strcmp(argv, "-global") == 0) {
         IS_GLOBAL = GLOBAL;
         (*crt_arg)++;
         return 1;
