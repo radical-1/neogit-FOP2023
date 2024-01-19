@@ -86,9 +86,11 @@ void make_branch(char branchName[], char neogitDir[])
             strcpy(branchAddress, "/.");
     #endif
     strcat(branchAddress, branchName);
-    mkdir(branchAddress);
     #ifdef _WIN32
-            SetFileAttributes(branchAddress, FILE_ATTRIBUTE_HIDDEN);
+        mkdir(branchAddress);
+        SetFileAttributes(branchAddress, FILE_ATTRIBUTE_HIDDEN);
+    #else
+        mkdir(branchAddress, 666);
     #endif
 }
 // think about what is needed to add in .neogit directory when you are making it
@@ -105,22 +107,21 @@ void Open_dirctories_for_init(DIR* Repo, char neogitDir[])
             strcat(commit, "\\.commits");
             strcat(stage, "\\.stage");
             strcat(Repository, "\\Local_Repository");
+            mkdir(commit);
+            mkdir(stage);
+            mkdir(Repository);
+            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
     #else
             strcat(commit, "/.commits");
             strcat(stage, "/.stage");
             strcat(Repository, "/Local_Repository");
+            mkdir(commit, 666);
+            mkdir(stage, 666);
+            mkdir(Repository, 666);
             // using slash for unix path
 
     #endif
-    mkdir(commit);
-    mkdir(stage);
-    mkdir(Repository);
-    #ifdef _WIN32
-            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
-            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
-            // this part is for windows
-    #endif
-
 }
 void init() {
     char currentDirectory[100];
@@ -134,13 +135,11 @@ void init() {
     strcpy(neoGitDir, currentDirectory);
 #ifdef _WIN32
     strcat(neoGitDir, "\\.neogit"); // Use backslash for Windows paths
+    mkdir(neoGitDir);
+    SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
 #else
     strcat(neoGitDir, "/.neogit"); // Use forward slash for Unix paths
-#endif
-    mkdir(neoGitDir);
-#ifdef _WIN32
-    // Set the directory as hidden on Windows
-    SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
+    mkdir(neoGitDir, 666);
 #endif
     DIR *Repo = opendir(neoGitDir);
     Open_dirctories_for_init(Repo, neoGitDir);
