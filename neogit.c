@@ -1,55 +1,23 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
+#include <time.h>
+typedef char* string;
+#define make_string(n) (string)calloc(n, sizeof(char))
+#define remove_string(str) free(str)
 #define GLOBAL 1
 #define LOCAL 0
 int IS_GLOBAL = LOCAL;
-
-// base setting
-void config(char* input[])
-{
-    char cwd[100];
-    getcwd(cwd, 100);
-    char mem[100];
-    strcpy(mem, "D:\\projectFOP\\user\\");
-    strcat(mem, cwd);
-    strcat(mem, ".txt");
-    FILE* memory = fopen(mem , "w");
-    if(strcmp(input[0], "user.name") == 0) {
-        char filewrite[100];
-        strcpy(filewrite, "username : ");
-        strcat(filewrite, input[1]);
-        strcat(filewrite, "\n");
-        fputs(filewrite, memory);
-        if (IS_GLOBAL == GLOBAL) {
-            FILE* global = fopen("D:\\projectFOP\\user\\global.txt", "w");
-            if(global == NULL) printf("failed to open file!\n");
-            fputs(filewrite, global);
-            fclose(global);
-        }
-        printf("usser.name completelly get setted!\n");
-    }
-    if(strcmp(input[0], "user.email") == 0) {
-        char filewrite[100];
-        strcpy(filewrite, "user email : ");
-        strcat(filewrite, input[1]);
-        strcat(filewrite, "\n");
-        fputs(filewrite, memory);
-        if (IS_GLOBAL == GLOBAL) {
-            FILE* global = fopen("D:\\projectFOP\\user\\global.txt", "w");
-            if(global == NULL) printf("failed to open file!\n");
-            fputs(filewrite, global);
-            fclose(global);
-        }
-        printf("user.email completelly get setted!\n");
-    }
-    fclose(memory);
+// random number for hash
+long long giveRandomNumber() {
+    // Initialize random seed
+    srand(time(NULL));
+    // Generate a random number and assign it to the integer
+    return (rand() % (100000000 - 10000000 + 1)) + 10000000;
 }
 int find_file(const char *directory, const char *search_name) {
     struct dirent *entry;
@@ -75,81 +43,102 @@ int find_file(const char *directory, const char *search_name) {
     closedir(dp);
     return 0;
 }
+// base setting
+void information(char* input[])
+{
+    char cwd[100];
+    getcwd(cwd, 100);
+    char mem[100];
+
+    
+}
+void ALIAS(char* input[])
+{
+    printf ("%s = %s\n", input[0], input[1]);
+    char cwd[200];
+    getcwd(cwd, sizeof(cwd));
+    if(IS_GLOBAL == LOCAL) {
+        if (!find_file(cwd, ".neogit")) {
+            printf(".neogit not found in current working directory. Please run `neogit init` first\n");
+            return;
+        }
+    }
+    char alias[200];
+    char command[200];
+    sscanf(input[0], "alias.%s", alias);
+    strcpy(command, input[1]);
+    if(IS_GLOBAL == GLOBAL) {
+        FILE* GLOB = fopen("GLOBAL_alias.txt", "a");
+        fprintf(GLOB, "%s = %s\n", alias, command);
+        fclose(GLOB);       
+    }
+    if (find_file(cwd, ".neogit")) {
+        char local_alias[300];
+        sprintf(local_alias, "%s/.neogit/LOCAL_alias.txt", cwd);
+        FILE* LOC = fopen(local_alias, "a");
+        fprintf(LOC, "%s = %s\n", alias, command);
+        fclose(LOC);
+    }
+}
 //this part will be completed soon
 void make_branch(char branchName[], char neogitDir[])
 {
     char branchAddress[100];
-    strcpy(branchAddress, neogitDir);
-    #ifdef _WIN32
-            strcat(branchAddress, "\\.");
-    #else
-            strcpy(branchAddress, "/.");
-    #endif
-    strcat(branchAddress, branchName);
-    #ifdef _WIN32
-        mkdir(branchAddress);
-        SetFileAttributes(branchAddress, FILE_ATTRIBUTE_HIDDEN);
-    #else
-        mkdir(branchAddress, 666);
-    #endif
+    sprintf(branchAddress, "%s/.%s", neogitDir, branchName);
+    mkdir(branchAddress, 0775);
 }
 // think about what is needed to add in .neogit directory when you are making it
-void Open_dirctories_for_init(DIR* Repo, char neogitDir[]) 
+void Open_dirctories_for_init(char neogitDir[]) 
 {
-    char commit[100];
-    char stage[100];
-    char Repository[100];
-    strcpy(commit, neogitDir);
-    strcpy(stage, neogitDir);
-    strcpy(Repository, neogitDir);
+    char commit[200];
+    char repository[200];
+    char stage[200];
     make_branch("master", neogitDir);
-    #ifdef _WIN32
-            strcat(commit, "\\.commits");
-            strcat(stage, "\\.stage");
-            strcat(Repository, "\\Local_Repository");
-            mkdir(commit);
-            mkdir(stage);
-            mkdir(Repository);
-            SetFileAttributes(commit, FILE_ATTRIBUTE_HIDDEN);
-            SetFileAttributes(stage, FILE_ATTRIBUTE_HIDDEN);
-    #else
-            strcat(commit, "/.commits");
-            strcat(stage, "/.stage");
-            strcat(Repository, "/Local_Repository");
-            mkdir(commit, 666);
-            mkdir(stage, 666);
-            mkdir(Repository, 666);
-            // using slash for unix path
-
-    #endif
+    sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
+    sprintf(stage,"%s/.STAGING_AREA",neogitDir);
+    sprintf(commit,"%s/.COMMITS",neogitDir);
+    mkdir(commit, 0775);
+    mkdir(repository, 0775);
+    mkdir(stage, 0775);
+    // using slash for unix path
 }
 void init() {
-    char currentDirectory[100];
+    char currentDirectory[200];
     getcwd(currentDirectory, sizeof(currentDirectory));
     int exist_neogit = find_file(currentDirectory, ".neogit");
     if (exist_neogit) {
         printf("noegit is already initialized in this folder!\n");
         return;
     }
-    char neoGitDir[100];
-    strcpy(neoGitDir, currentDirectory);
-#ifdef _WIN32
-    strcat(neoGitDir, "\\.neogit"); // Use backslash for Windows paths
-    mkdir(neoGitDir);
-    SetFileAttributes(neoGitDir, FILE_ATTRIBUTE_HIDDEN);
-#else
-    strcat(neoGitDir, "/.neogit"); // Use forward slash for Unix paths
-    mkdir(neoGitDir, 666);
-#endif
-    DIR *Repo = opendir(neoGitDir);
-    Open_dirctories_for_init(Repo, neoGitDir);
+    char neoGitDir[200];
+    sprintf(neoGitDir, "%s/.neogit", currentDirectory);
+    mkdir(neoGitDir, 0775);
+    Open_dirctories_for_init(neoGitDir);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
 int check_is_global(char*, int*);
 int main(int argc, char *argv[])
-{
-    
+{    
     int crt_arg = 1; //current argument
+    FILE* GLOBAL_ALIAS = fopen("GLOBAL_alias.txt", "r");
+    if (GLOBAL_ALIAS) {
+        string tmp = make_string(200);
+        while(fgets(tmp, sizeof(tmp), GLOBAL_ALIAS)) {
+            char alias[200];
+            sscanf(tmp, "%s", alias);
+            if (strcmp(alias, argv[crt_arg]) == 0) {
+                tmp += (strlen(alias) + 3);
+                int idx = 0;
+                while (strlen(argv[crt_arg + idx + 1])) {
+                    ssscanf(tmp, "%s", argv[crt_arg + idx]);
+                    tmp += (strlen(argv[crt_arg + idx]) + 1);
+                    idx++;
+                }
+                break;
+            }
+        }
+        remove_string(tmp);
+    }
     if (strcmp(argv[crt_arg], "init") == 0) {
         init();
         crt_arg++;
@@ -157,14 +146,17 @@ int main(int argc, char *argv[])
     if (strcmp(argv[crt_arg], "config") == 0) {
         crt_arg++;
         check_is_global(argv[crt_arg], &crt_arg);
-        config(&argv[crt_arg]);
+        printf("%s\n", argv[crt_arg]);
+        if (strncmp(argv[crt_arg], "alias", 5) == 0) {
+            ALIAS(&argv[crt_arg]);
+        }
+        else information(&argv[crt_arg]);
         
     }
     printf("end of our project!\n");
     return 0;
-
 }
-int check_is_global(char* input, int* crt_arg)
+int check_is_global(char input[], int* crt_arg)
 {
     if(strcmp(input, "-global") == 0) {
         IS_GLOBAL = GLOBAL;
