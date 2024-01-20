@@ -92,7 +92,6 @@ void information(char* input[])
 }
 void ALIAS(char* input[])
 {
-    printf ("%s = %s\n", input[0], input[1]);
     char cwd[200];
     getcwd(cwd, sizeof(cwd));
     if(IS_GLOBAL == LOCAL) {
