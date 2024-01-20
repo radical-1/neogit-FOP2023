@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <fnmatch.h>
 typedef char* string;
 #define make_string(n) (string)calloc(n, sizeof(char))
 #define remove_string(str) free(str)
@@ -19,6 +20,7 @@ long long giveRandomNumber() {
     // Generate a random number and assign it to the integer
     return (rand() % (100000000 - 10000000 + 1)) + 10000000;
 }
+// finding a file in a folder
 int find_file(const char *directory, const char *search_name) {
     struct dirent *entry;
     DIR *dp;
@@ -43,13 +45,45 @@ int find_file(const char *directory, const char *search_name) {
     closedir(dp);
     return 0;
 }
+// check if neogit is initialized already or not
+string IS_INITED() {
+    string neogit = make_string(300);
+    getcwd(neogit, 300);
+    int length = strlen(neogit);
+    for (int i = length; i >= 0; i--) {
+        if (neogit[i] == '/') {
+            if (find_file(neogit, ".neogit")) {
+                return neogit;
+            }
+            neogit[i] = '\0';
+        }
+    }
+    return NULL;
+}
+string WilCard_check(string address, string pattern) 
+{
+    DIR *dir;
+    struct dirent *entry;
+    int result;
+
+    dir = opendir(address);
+
+    if (dir != NULL) {
+        while ((entry = readdir(dir)) != NULL) {
+            result = fnmatch(pattern, entry->d_name, 0);
+
+        if (result == 0) {
+            printf("Found file: %s\n", entry->d_name);
+            }
+        }
+    }
+    
+}
 // base setting
 void information(char* input[])
 {
-    char cwd[200];
-    getcwd(cwd, 200);
     if (IS_GLOBAL == LOCAL) {
-        if (find_file(cwd, ".neogit") == 0) {
+        if (!IS_INITED()) {
             printf(".neogit not found in current working directory. Please run `neogit init` first\n");
             return;
         }
@@ -78,7 +112,7 @@ void information(char* input[])
         fclose(GLOB);
     }
     char local_info[500];
-    sprintf (local_info, "%s/.neogit/LOCAL_info.txt", cwd);
+    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
     FILE* LOC  = fopen(local_info, "r+");
     if (MOD == NAME) {
             fprintf(LOC, "user.name = %s", input[1]);
@@ -92,10 +126,9 @@ void information(char* input[])
 }
 void ALIAS(char* input[])
 {
-    char cwd[200];
-    getcwd(cwd, sizeof(cwd));
+    printf ("%s = %s\n", input[0], input[1]);
     if(IS_GLOBAL == LOCAL) {
-        if (!find_file(cwd, ".neogit")) {
+        if (IS_INITED() == NULL) {
             printf(".neogit not found in current working directory. Please run `neogit init` first\n");
             return;
         }
@@ -109,9 +142,9 @@ void ALIAS(char* input[])
         fprintf(GLOB, "%s = %s\n", alias, command);
         fclose(GLOB);       
     }
-    if (find_file(cwd, ".neogit")) {
+    if (IS_INITED()) {
         char local_alias[300];
-        sprintf(local_alias, "%s/.neogit/LOCAL_alias.txt", cwd);
+        sprintf(local_alias, "%s/.neogit/LOCAL_alias.txt", IS_INITED());
         FILE* LOC = fopen(local_alias, "a");
         fprintf(LOC, "%s = %s\n", alias, command);
         fclose(LOC);
@@ -142,8 +175,7 @@ void Open_dirctories_for_init(char neogitDir[])
 void init() {
     char cwd[200];
     getcwd(cwd, sizeof(cwd));
-    int exist_neogit = find_file(cwd, ".neogit");
-    if (exist_neogit) {
+    if (IS_INITED()) {
         printf("noegit is already initialized in this folder!\n");
         return;
     }
@@ -158,22 +190,94 @@ void init() {
     fclose(LOCAL_INFO);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
+
+void ADD_TXT(char sourceAddress[], char destinationAddress[])
+{
+    FILE *source, *destination;
+    char buffer[1024];
+    size_t bytes_read;
+
+    source = fopen(sourceAddress, "r");
+    if (source == NULL) {
+        printf("Error: Could not open source file\n");
+        exit(1);
+    }
+
+    destination = fopen(destinationAddress, "w");
+    if (destination == NULL) {
+        printf("Error: Could not open destination file\n");
+        fclose(source);
+        exit(1);
+    }
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+        fwrite(buffer, 1, bytes_read, destination);
+    }
+
+    fclose(source);
+    fclose(destination);
+
+    printf("File copied successfully\n");
+}
+
+
 int check_is_global(char*, int*);
 int main(int argc, char *argv[])
 {    
     int crt_arg = 1; //current argument
     if (strcmp(argv[crt_arg], "init") == 0) {
         init();
-        crt_arg++;
+        return 0;
     }
-    if (strcmp(argv[crt_arg], "config") == 0) {
+    else if (strcmp(argv[crt_arg], "config") == 0) {
         crt_arg++;
         check_is_global(argv[crt_arg], &crt_arg);
         if (strncmp(argv[crt_arg], "alias", 5) == 0) {
             ALIAS(&argv[crt_arg]);
         }
         else information(&argv[crt_arg]);
-        
+        return 0;
+    }
+    if(IS_INITED() == NULL) {
+        printf("please initilze neogit first!\n");
+        return 0;
+    }
+    if(strcmp(argv[crt_arg], "add") == 0) {
+        crt_arg++;
+        if(strchr(argv[crt_arg], '*')) {
+            char cwd[200];
+            getcwd(cwd, 200);
+            WilCard_check(cwd, argv[crt_arg]);
+        }
+        else if(strcmp(argv[crt_arg], "-f") == 0) {
+
+        }
+        else if(strcmp(argv[crt_arg], "-n") == 0) {
+
+        }
+        else if(strcmp(argv[crt_arg], "-redo") == 0) {
+
+        }
+        else {
+            char cwd[200];
+            getcwd(cwd, 200);
+            if (find_file(cwd, argv[crt_arg]) == 0) {
+                printf("No such a file or directory!\n");
+                return 0;
+            }
+            if (strchr(argv[crt_arg], '.') == 0) {
+                char source[300];
+                char destination[300];
+                string neogit = IS_INITED();
+                sprintf(source , "%s", argv[crt_arg]);
+                sprintf(destination, "%s/.neogit/.STAGING_AREA/%s", neogit, argv[crt_arg]);
+                ADD_TXT(source, destination);
+            }
+        }
+
+    }
+    else {
+        string input = make_string(300);
     }
     printf("end of our project!\n");
     return 0;
