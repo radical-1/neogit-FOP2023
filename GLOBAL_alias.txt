@@ -1,4 +1,3 @@
 arc = git add src/
 in = init
 arc = add src/
-reza = init
