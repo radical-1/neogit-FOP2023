@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <time.h>
 #include <fnmatch.h>
 typedef char* string;
@@ -13,6 +14,7 @@ typedef char* string;
 #define GLOBAL 1
 #define LOCAL 0
 int IS_GLOBAL = LOCAL;
+int check_is_global(char*, int*);
 // random number for hash
 long long giveRandomNumber() {
     // Initialize random seed
@@ -78,6 +80,15 @@ string WilCard_check(string address, string pattern)
         }
     }
     
+}
+int check_is_dir(string name) 
+{
+    DIR* dir = opendir(name);
+    /* If the directory opened successfully, then it's a directory. */
+    if (dir != NULL) {
+        return 1;
+    }
+    return 0;
 }
 // base setting
 void information(char* input[])
@@ -163,13 +174,16 @@ void Open_dirctories_for_init(char neogitDir[])
     char commit[200];
     char repository[200];
     char stage[200];
+    char unstage[200];
     make_branch("master", neogitDir);
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
     sprintf(commit,"%s/.COMMITS",neogitDir);
+    sprintf(unstage, "%s/.UNSTAGED", neogitDir);
     mkdir(commit, 0775);
     mkdir(repository, 0775);
     mkdir(stage, 0775);
+    mkdir(unstage, 0775);
     // using slash for unix path
 }
 void init() {
@@ -219,9 +233,106 @@ void ADD_TXT(char sourceAddress[], char destinationAddress[])
 
     printf("File copied successfully\n");
 }
+void ADD_PLUS(const char* source, const char* destination) 
+{
+    DIR *dir = opendir(source);
+    if (dir == NULL) {
+        perror("Unable to open the directory");
+        return;
+    }
 
+    mkdir(destination, 0777);
 
-int check_is_global(char*, int*);
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        char source_path[1024];
+        char destination_path[1024];
+
+        snprintf(source_path, sizeof(source_path), "%s/%s", source, entry->d_name);
+        snprintf(destination_path, sizeof(destination_path), "%s/%s", destination, entry->d_name);
+
+        if (entry->d_type == DT_DIR) {
+            ADD_PLUS(source_path, destination_path);
+        } else {
+            
+            ADD_TXT(source_path, destination_path);
+        }
+    }
+
+    closedir(dir);
+
+}
+void ADD_FUNC(string input)
+{
+    char cwd[200];
+    getcwd(cwd, 200);
+    if (find_file(cwd, input) == 0) {
+        printf("No such a file or directory!\n");
+        return;
+    }
+    if (check_is_dir(input)) {
+        char adrs[500];
+        sprintf(adrs, "%s/%s", cwd, input);
+        char dest[500];
+        sprintf(dest, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), input);
+        ADD_PLUS(adrs, dest);
+    } 
+    else {
+        char source[300];
+        char destination[300];
+        sprintf(source , "%s", input);
+        sprintf(destination, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), input);
+        ADD_TXT(source, destination);
+    }
+}
+
+void show_in_add(int depth, int cur, string source, string destination)
+{
+    if(depth == cur) return;
+    printf("\n///////////////////////////\n");
+    DIR *dir = opendir(source);
+    if (dir == NULL) {
+        perror("Unable to open the directory");
+        return;
+    }
+
+    DIR* dir_dest = opendir(destination);
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) {
+            continue;
+        }
+
+        char source_path[1024];
+        char destination_path[1024];
+
+        snprintf(source_path, sizeof(source_path), "%s/%s", source, entry->d_name);
+        snprintf(destination_path, sizeof(destination_path), "%s/%s", destination, entry->d_name);
+
+        if (entry->d_type == DT_DIR) {
+            if(find_file(destination, entry->d_name) == 1) {
+                printf("%s -> STAGED\n", entry->d_name);
+                show_in_add(depth , cur + 1, source_path, destination_path);
+            } else {
+                printf("%s -> UNSTAGED\n", entry->d_name);
+            }
+        } else {
+            if(find_file(destination, entry->d_name) == 1)
+                printf("%s -> STAGED\n", entry->d_name);
+            else
+                printf("%s -> UNSTAGED\n", entry->d_name);
+            
+        }
+    }
+
+    closedir(dir);
+}
+
 int main(int argc, char *argv[])
 {    
     int crt_arg = 1; //current argument
@@ -239,7 +350,7 @@ int main(int argc, char *argv[])
         return 0;
     }
     if(IS_INITED() == NULL) {
-        printf("please initilze neogit first!\n");
+        printf("please initilize neogit first!\n");
         return 0;
     }
     if(strcmp(argv[crt_arg], "add") == 0) {
@@ -250,29 +361,25 @@ int main(int argc, char *argv[])
             WilCard_check(cwd, argv[crt_arg]);
         }
         else if(strcmp(argv[crt_arg], "-f") == 0) {
-
+            for (int i = crt_arg + 1; i < argc; i++) {
+                ADD_FUNC(argv[i]);
+            }
         }
         else if(strcmp(argv[crt_arg], "-n") == 0) {
-
+            crt_arg++;
+            int depth;
+            sscanf(argv[crt_arg], "%d", &depth);
+            char cwd[500];
+            getcwd(cwd, 500);
+            char stage[500];
+            sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+            show_in_add(depth, 0, cwd, stage);
         }
         else if(strcmp(argv[crt_arg], "-redo") == 0) {
 
         }
         else {
-            char cwd[200];
-            getcwd(cwd, 200);
-            if (find_file(cwd, argv[crt_arg]) == 0) {
-                printf("No such a file or directory!\n");
-                return 0;
-            }
-            if (strchr(argv[crt_arg], '.') == 0) {
-                char source[300];
-                char destination[300];
-                string neogit = IS_INITED();
-                sprintf(source , "%s", argv[crt_arg]);
-                sprintf(destination, "%s/.neogit/.STAGING_AREA/%s", neogit, argv[crt_arg]);
-                ADD_TXT(source, destination);
-            }
+            ADD_FUNC(argv[crt_arg]);
         }
 
     }
