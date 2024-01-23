@@ -198,10 +198,14 @@ void init() {
     mkdir(neoGitDir, 0775);
     Open_dirctories_for_init(neoGitDir);
     char local_info[500];
-    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", cwd);
+    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
     FILE* LOCAL_INFO = fopen(local_info, "w");
+    char add_info[500];
+    sprintf(add_info, "%s/.neogit/.ADD_INFO", IS_INITED());
+    FILE* ADD_INFO = fopen(add_info, "w");
     fprintf(LOCAL_INFO, "user.name =\nuser.email =\n");
     fclose(LOCAL_INFO);
+    fclose(ADD_INFO);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
 
@@ -293,7 +297,6 @@ void ADD_FUNC(string input)
 void show_in_add(int depth, int cur, string source, string destination)
 {
     if(depth == cur) return;
-    printf("\n\n");
     DIR *dir = opendir(source);
     if (dir == NULL) {
         perror("Unable to open the directory");
@@ -342,8 +345,6 @@ void RESET_FUNC(string input)
         printf("there is no such a file(or directory) in staging area!\n");
         return;
     } remove_string(path);
-    char cwd[200];
-    getcwd(cwd, 200);
     if (check_is_dir(input)) {
         char adrs[500];
         sprintf(adrs, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), input);
@@ -360,6 +361,105 @@ void RESET_FUNC(string input)
     }
 
     printf("File successfully moved.\n");
+}
+
+void REDO_FUNC()
+{
+    struct dirent *stage;
+    string name = make_string(500);
+    sprintf(name, "%s/.neogit/.UNSTAGED", IS_INITED());
+    DIR* dp = opendir(name);
+    while((stage = readdir(dp)) != NULL) {
+        if(strcmp(stage->d_name, ".") == 0 || strcmp(stage->d_name, "..") == 0) continue;
+        if (check_is_dir(stage->d_name)) {
+            char adrs[500];
+            sprintf(adrs, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), stage->d_name);
+            char dest[500];
+            sprintf(dest, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), stage->d_name);
+            ADD_PLUS(adrs, dest);
+        } 
+        else {
+            char source[300];
+            char destination[300];
+            sprintf(source , "%s/.neogit/.UNSTAGED/%s", IS_INITED(), stage->d_name);
+            sprintf(destination, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), stage->d_name);
+            ADD_TXT(source, destination);
+        }
+        char command[500];
+        sprintf(command, "rm -r %s/.neogit/.UNSTAGED/%s", IS_INITED(), stage->d_name);
+        system(command);
+    }
+
+}
+
+void UNDO_FUNC()
+{
+    FILE *file;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    char fileAddress[500];
+    sprintf(fileAddress, "%s/.neogit/.ADD_INFO", IS_INITED());
+    file = fopen(fileAddress, "r");
+    if (file == NULL) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+
+    // Move the file pointer to the end of the file
+    fseek(file, 0, SEEK_END);
+
+    // Get the size of the file
+    long fileSize = ftell(file);
+
+    // Move the file pointer to the second-to-last newline character
+    fseek(file, -2 * sizeof(char), SEEK_CUR);
+
+    // Read the last line of the file
+    while (fgetc(file) != '\n') {
+        if (feof(file)) {
+            break;
+        }
+        fseek(file, -2 * sizeof(char), SEEK_CUR);
+    }
+
+    // Read the last line of the file
+    read = getline(&line, &len, file);
+    if (read == -1) {
+        perror("getline");
+        exit(EXIT_FAILURE);
+    }
+    int point = 0;
+    while (point < strlen(line) - 2) {
+        char word[500];
+        sscanf(line + point, "%s", word);
+        point += strlen(word);
+        RESET_FUNC(word);
+        char command[550];
+        sprintf(command, "rm -r %s/.neogit/.STAGING_AREA/%s", IS_INITED(), word);
+        system(command);
+    }
+    free(line);
+    rewind(file);
+    char input[300];
+    char total[2000];
+    int index = 0;
+    while(fgets(input, 300, file) != NULL) {
+        sprintf(total + index, "%s", input);
+        index += strlen(input);
+    }
+    for (int i = strlen(total) - 2;;  i--) {
+        if(total[i] == '\n') {
+            total[i + 1] = '\0';
+            break;
+        }
+    }
+    // Close the file
+    fclose(file);
+    printf("%s", total);
+    FILE* new_file = fopen(fileAddress, "w");
+    fputs(total, new_file);
+    fclose(new_file);
 }
 
 int main(int argc, char *argv[])
@@ -384,10 +484,15 @@ int main(int argc, char *argv[])
     }
     if(strcmp(argv[crt_arg], "add") == 0) {
         crt_arg++;
+        char addfile[500];
+        sprintf(addfile, "%s/.neogit/.ADD_INFO", IS_INITED());
+        FILE* add = fopen(addfile, "a");
         if(strcmp(argv[crt_arg], "-f") == 0) {
             for (int i = crt_arg + 1; i < argc; i++) {
                 ADD_FUNC(argv[i]);
+                fprintf(add, "%s ", argv[i]);
             }
+            fprintf(add, "\n");
         }
         else if(strcmp(argv[crt_arg], "-n") == 0) {
             crt_arg++;
@@ -400,17 +505,20 @@ int main(int argc, char *argv[])
             show_in_add(depth, 0, cwd, stage);
         }
         else if(strcmp(argv[crt_arg], "-redo") == 0) {
-            //fill this part after completing rest part
+            //fill this part after completing reset part
+            REDO_FUNC();
         }
         else {
             ADD_FUNC(argv[crt_arg]);
+            fprintf(add, "%s\n", argv[crt_arg]);
         }
+        fclose(add);
 
     }
     else if (strcmp(argv[crt_arg], "reset") == 0) {
         crt_arg++;
         if(strcmp(argv[crt_arg], "-undo") == 0) {
-            
+            UNDO_FUNC();
         }
         else if(strcmp(argv[crt_arg], "-f") == 0) {
             for (int i = crt_arg + 1; i < argc; i++) {
