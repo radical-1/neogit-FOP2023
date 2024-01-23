@@ -293,7 +293,7 @@ void ADD_FUNC(string input)
 void show_in_add(int depth, int cur, string source, string destination)
 {
     if(depth == cur) return;
-    printf("\n///////////////////////////\n");
+    printf("\n\n");
     DIR *dir = opendir(source);
     if (dir == NULL) {
         perror("Unable to open the directory");
@@ -320,6 +320,7 @@ void show_in_add(int depth, int cur, string source, string destination)
                 show_in_add(depth , cur + 1, source_path, destination_path);
             } else {
                 printf("%s -> UNSTAGED\n", entry->d_name);
+                show_in_add(depth, cur + 1, source_path, destination);
             }
         } else {
             if(find_file(destination, entry->d_name) == 1)
@@ -331,6 +332,34 @@ void show_in_add(int depth, int cur, string source, string destination)
     }
 
     closedir(dir);
+}
+//reset part
+void RESET_FUNC(string input)
+{
+    string path = make_string(500);
+    sprintf(path, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    if(find_file(path, input) == 0) {
+        printf("there is no such a file(or directory) in staging area!\n");
+        return;
+    } remove_string(path);
+    char cwd[200];
+    getcwd(cwd, 200);
+    if (check_is_dir(input)) {
+        char adrs[500];
+        sprintf(adrs, "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), input);
+        char dest[500];
+        sprintf(dest, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), input);
+        ADD_PLUS(adrs, dest);
+    } 
+    else {
+        char source[300];
+        char destination[300];
+        sprintf(source , "%s/.neogit/.STAGING_AREA/%s", IS_INITED(), input);
+        sprintf(destination, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), input);
+        ADD_TXT(source, destination);
+    }
+
+    printf("File successfully moved.\n");
 }
 
 int main(int argc, char *argv[])
@@ -355,12 +384,7 @@ int main(int argc, char *argv[])
     }
     if(strcmp(argv[crt_arg], "add") == 0) {
         crt_arg++;
-        if(strchr(argv[crt_arg], '*')) {
-            char cwd[200];
-            getcwd(cwd, 200);
-            WilCard_check(cwd, argv[crt_arg]);
-        }
-        else if(strcmp(argv[crt_arg], "-f") == 0) {
+        if(strcmp(argv[crt_arg], "-f") == 0) {
             for (int i = crt_arg + 1; i < argc; i++) {
                 ADD_FUNC(argv[i]);
             }
@@ -376,12 +400,31 @@ int main(int argc, char *argv[])
             show_in_add(depth, 0, cwd, stage);
         }
         else if(strcmp(argv[crt_arg], "-redo") == 0) {
-
+            //fill this part after completing rest part
         }
         else {
             ADD_FUNC(argv[crt_arg]);
         }
 
+    }
+    else if (strcmp(argv[crt_arg], "reset") == 0) {
+        crt_arg++;
+        if(strcmp(argv[crt_arg], "-undo") == 0) {
+            
+        }
+        else if(strcmp(argv[crt_arg], "-f") == 0) {
+            for (int i = crt_arg + 1; i < argc; i++) {
+                RESET_FUNC(argv[i]);
+                char command[200];
+                sprintf(command, "rm -r %s/.neogit/.STAGING_AREA/%s", IS_INITED(), argv[i]);
+                system(command);
+            }
+        } else {
+            RESET_FUNC(argv[crt_arg]);
+            char command[200];
+            sprintf(command, "rm -r %s/.neogit/.STAGING_AREA/%s", IS_INITED(), argv[crt_arg]);
+            system(command);
+        }
     }
     else {
         string input = make_string(300);
