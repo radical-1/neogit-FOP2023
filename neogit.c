@@ -10,7 +10,7 @@
 #include <time.h>
 #include <fnmatch.h>
 #include <stdbool.h>
-
+#include <errno.h>
 
 typedef char* string;
 #define make_string(n) (string)calloc(n, sizeof(char))
@@ -141,7 +141,7 @@ void information(char* input[])
         return;
     }
     if (IS_GLOBAL == GLOBAL) {
-        FILE* GLOB = fopen("GLOBAL_info.txt", "r+");
+        FILE* GLOB = fopen("/GLOBAL_info.txt", "r+");
         if (MOD == NAME) {
             fprintf(GLOB, "user.name = %s", input[1]);
         }
@@ -180,7 +180,7 @@ void ALIAS(char* input[])
     sscanf(input[0], "alias.%s", alias);
     strcpy(command, input[1]);
     if(IS_GLOBAL == GLOBAL) {
-        FILE* GLOB = fopen("GLOBAL_alias.txt", "a");
+        FILE* GLOB = fopen("/GLOBAL_alias.txt", "a");
         fprintf(GLOB, "%s = %s\n", alias, command);
         fclose(GLOB);       
     }
@@ -202,19 +202,23 @@ void make_branch(char branchName[], char neogitDir[])
 // think about what is needed to add in .neogit directory when you are making it
 void Open_dirctories_for_init(char neogitDir[]) 
 {
-    char commit[200];
-    char repository[200];
-    char stage[200];
-    char unstage[200];
+    char commit[MAX_LENGTH_STRING];
+    char repository[MAX_LENGTH_STRING];
+    char stage[MAX_LENGTH_STRING];
+    char unstage[MAX_LENGTH_STRING];
+    char commit_info[MAX_LENGTH_STRING];
     make_branch("master", neogitDir);
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
     sprintf(commit,"%s/.COMMITS",neogitDir);
     sprintf(unstage, "%s/.UNSTAGED", neogitDir);
+    sprintf(commit_info, "%s/.COMMIT_SET", neogitDir);
+
     mkdir(commit, 0755);
     mkdir(repository, 0755);
     mkdir(stage, 0755);
     mkdir(unstage, 0755);
+    mkdir(commit_info, 0755);
     // using slash for unix path
 }
 void init() {
@@ -228,13 +232,23 @@ void init() {
     sprintf(neoGitDir, "%s/.neogit", cwd);
     mkdir(neoGitDir, 0755);
     Open_dirctories_for_init(neoGitDir);
-    char local_info[500];
+    char local_info[MAX_LENGTH_STRING];
     sprintf(local_info, "%s/LOCAL_info.txt", neoGitDir);
     FILE* LOCAL_INFO = fopen(local_info, "w");
+    FILE* GLOBAL_INFO = fopen("/GLOBAL_info.txt", "r");
+    if (GLOBAL_INFO == NULL){
+        printf("error opening");
+        exit(1);
+    }
+    for(int i = 0; i < 4; i++) {
+        char line[MAX_LENGTH_STRING];
+        fgets(line, MAX_LENGTH_STRING, GLOBAL_INFO);
+        fputs(line, LOCAL_INFO);
+    }
     char add_info[500];
     sprintf(add_info, "%s/.ADD_INFO", neoGitDir);
     FILE* ADD_INFO = fopen(add_info, "w");
-    fprintf(LOCAL_INFO, "user.name =\nuser.email =\nbranch : master\nlast commit_id :\n");
+    fclose(GLOBAL_INFO);
     fclose(LOCAL_INFO);
     fclose(ADD_INFO);
     printf("Initialized empty Git repository in %s\n", neoGitDir);
@@ -242,6 +256,7 @@ void init() {
 
 void ADD_TXT(char sourceAddress[], char destinationAddress[])
 {
+    printf("%s\n", destinationAddress);
     FILE *source, *destination;
     char buffer[1024];
     size_t bytes_read;
@@ -275,8 +290,8 @@ void ADD_PLUS(const char* source, const char* destination)
         perror("Unable to open the directory");
         return;
     }
-
-    mkdir(destination, 0777);
+    /*this is wrong fix it later!!!!!*/
+    mkdir(destination, 0755);
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -515,7 +530,7 @@ void STATUS_FUNC(string directory)
         }
     }
 }
-void make_commit(unsigned int prev_commit, string branch, string commit_mesage, string aothurName, string aothurEmail)
+void make_commit(unsigned int prev_commit, string branch, string commit_message, string aothurName, string aothurEmail)
 {
     unsigned int commit_id = giveRandomNumber();
     time_t current_time;
@@ -524,13 +539,12 @@ void make_commit(unsigned int prev_commit, string branch, string commit_mesage, 
     current_time = time(NULL);
     time_info = localtime(&current_time);
     strftime(cur_time, sizeof(cur_time), "%Y-%m-%d %H:%M:%S", time_info);
-    printf("Current time: %s\n", cur_time);
+
     int num_stage = 0;
     char stage_address[MAX_LENGTH_STRING];
     sprintf(stage_address, "%s/.neogit/.STAGING_AREA", IS_INITED());
     struct dirent* stage;
     DIR* STAGING_AREA = opendir(stage_address);
-
     while((stage = readdir(STAGING_AREA)) != NULL) {
         if (strcmp(stage->d_name, ".") == 0 || strcmp(stage->d_name ,"..") == 0)
             continue;
@@ -541,10 +555,56 @@ void make_commit(unsigned int prev_commit, string branch, string commit_mesage, 
     char commit_info[MAX_LENGTH_STRING];
     sprintf(commit_info, "%s/.neogit/COMMIT_INFO.txt", IS_INITED());
     FILE* COMMIT_INFO = fopen(commit_info, "a");
-    fprintf(COMMIT_INFO, "(%s) (%s) (%s) (%s) (%X) (%s) (%d)\n", cur_time, commit_mesage, aothurName, aothurEmail, commit_id, branch, num_stage);
+    fprintf(COMMIT_INFO, "(%s) (%s) (%s) (%s) (%X) (%s) (%d)\n", cur_time, commit_message, aothurName, aothurEmail, commit_id, branch, num_stage);
     fclose(COMMIT_INFO);
 
+    char commit_tree[MAX_LENGTH_STRING];
+    sprintf(commit_tree, "%s/.neogit/.TREE.txt", IS_INITED());
+    FILE* TREE = fopen(commit_tree, "a");
+    fprintf(TREE ,"prev_commit->%X commit_id->%X branch->%s\n", prev_commit, commit_id, branch);
 
+    char new_commit[MAX_LENGTH_STRING];
+    sprintf(new_commit, "%s/.neogit/.COMMITS/%X", IS_INITED(), commit_id);
+    mkdir(new_commit, 0755);
+
+    char repo_address[MAX_LENGTH_STRING];
+    sprintf(repo_address, "%s/.neogit/.LOCAL_REPOSITORY", IS_INITED());
+    DIR* STAGE = opendir(stage_address);
+    struct dirent* stg;
+    while((stg = readdir(STAGE)) != NULL) {
+        if (strcmp(stg->d_name, ".") == 0 || strcmp(stg->d_name, "..") == 0) continue;
+        char source[2 * MAX_LENGTH_STRING];
+        char destination[2 * MAX_LENGTH_STRING];
+        char repo_dest[2 * MAX_LENGTH_STRING];
+
+        sprintf(source, "%s/%s", stage_address, stg->d_name);
+        sprintf(destination, "%s/%s", new_commit, stg->d_name);
+        sprintf(repo_dest, "%s/%s", repo_address, stg->d_name);
+        if(stg->d_type == DT_DIR) {
+            //fill this part!!
+        } else {
+            ADD_TXT(source, repo_dest);
+        }
+        int result = rename(source , destination);
+        if(result == 0) {
+            printf("File moved successfully.\n");
+        } else {
+            printf("Unable to move the file.\n");
+        }
+    }
+    char local_info[MAX_LENGTH_STRING];
+    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
+    FILE* INFO = fopen(local_info, "r+");
+    char line[MAX_LENGTH_STRING];
+    for(int i = 0;  i < 3; i++) {
+        fgets(line, MAX_LENGTH_STRING, INFO);
+    }
+    char output[MAX_LENGTH_STRING];
+    sprintf(output, "commit_id : %X", commit_id);
+    fputs(output, INFO);
+    fclose(INFO);
+    printf("your commit was successfull!\nCommit Time : %s\nCommit ID : %X\nCommit Message : %s\n", cur_time, commit_id, commit_message);    
+    fclose(TREE);
 
 }
 void COMMIT_FUNC(string message)
@@ -574,7 +634,43 @@ void COMMIT_FUNC(string message)
     fclose(info);
 
     make_commit(prev_commit, cur_branch, message, name, email);
+}
 
+void SET_FUNC(string message, string shortcut) 
+{
+    char shrtct_path[MAX_LENGTH_STRING];
+    sprintf(shrtct_path, "%s/.neogit/.COMMIT_SET/%s.txt", IS_INITED(), shortcut);
+    FILE* SHORTCUT = fopen(shrtct_path, "w");
+    fputs(message, SHORTCUT);
+    fclose(SHORTCUT);
+}
+
+void REMOVE_SHORTCUT(string shorutcut)
+{
+    int ret;
+    FILE *fp;
+    char filename[MAX_LENGTH_STRING];
+    sprintf(filename, "%s/.neogit/.COMMIT_SET/%s.txt", IS_INITED(), shorutcut);
+   
+    ret = remove(filename);
+
+    if(ret == 0) {
+        printf("Shortcut Message deleted successfully!\n");
+    } else {
+        printf("Error: unable to delete the Shortcut Message!\n");
+    }
+}
+
+string find_message(string shortucut)
+{
+    char fileName[MAX_LENGTH_STRING];
+    sprintf(fileName, "%s/.neogit/.COMMIT_SET/%s.txt", IS_INITED(), shortucut);
+    FILE *filePointer=fopen(fileName,"r");
+    string Message = make_string(MAX_LENGTH_STRING);
+    fscanf(filePointer, "%[^\n]", Message);
+    fclose(filePointer);
+    return Message;
+    
 }
 
 int main(int argc, char *argv[])
@@ -653,41 +749,79 @@ int main(int argc, char *argv[])
         STATUS_FUNC(IS_INITED());
     }
     else if(strcmp(argv[crt_arg], "commit") == 0) {
-        crt_arg++;
-        if(strcmp(argv[crt_arg], "-m") == 0) {
+        if(strcmp(argv[2], "-m") == 0) {
             if(argc > 4) {
                 printf("to many arguments!\n");
                 return 1;
             }
-            crt_arg++;
-            COMMIT_FUNC(argv[crt_arg]);
+            COMMIT_FUNC(argv[3]);
         }
-        else if(strcmp(argv[crt_arg], "-s") == 0) {
+        else if(strcmp(argv[2], "-s") == 0) {
+            char shortcut[MAX_LENGTH_STRING];
+            sprintf(shortcut, "%s.txt", argv[3]);
 
+            char set_dir[MAX_LENGTH_STRING];
+            sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
+
+            if(find_file(set_dir, shortcut) == 0) {
+                perror("this shortcut message does not exist!\n");
+                return 1;
+            }
+            string message = find_message(argv[3]);
+            COMMIT_FUNC(message);
         }
     }
     else if(strcmp(argv[crt_arg], "set") == 0) {
-        crt_arg++;
-        if(strcmp(argv[crt_arg], "-m")) {
+        if(argc != 6) {
+            perror("not enough arguments!");
+            return 1;
+        }
+        if(strcmp(argv[2], "-m") || strcmp(argv[4], "-s")) {
             perror("invalid input!");
             return 1;
         }
-        crt_arg++;
+        SET_FUNC(argv[3], argv[5]);
     }
     else if(strcmp(argv[crt_arg], "replace") == 0) {
-        crt_arg++;
-        if(strcmp(argv[crt_arg], "-m")) {
+        if(argc != 6) {
+            perror("not enough arguments!\n");
+            return 1;
+        }
+        if(strcmp(argv[2], "-m") || strcmp(argv[4], "-s")) {
             perror("invalid input!");
             return 1;
         }
-        crt_arg++;
+        char shortcut[MAX_LENGTH_STRING];
+        sprintf(shortcut, "%s.txt", argv[5]);
+        char set_dir[MAX_LENGTH_STRING];
+        sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
+        if(find_file(set_dir, shortcut) == 0) {
+            perror("this shortcut message does not exist!\n");
+            return 1;
+        }
+        SET_FUNC(argv[3], argv[5]);
     }
-    else if(strcmp(argv[crt_arg], "replace") == 0) {
-        crt_arg++;
-        if(strcmp(argv[crt_arg], "-s")) {
+    else if(strcmp(argv[crt_arg], "remove") == 0) {
+        if(argc != 4) {
+            perror("not enough arguments!\n");
+            return 1;
+        }
+        if(strcmp(argv[2], "-s")) {
             perror("invalid inputs!");
             return 1;
         }
+        char shortcut[MAX_LENGTH_STRING];
+        sprintf(shortcut, "%s.txt", argv[3]);
+
+        char set_dir[MAX_LENGTH_STRING];
+        sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
+
+        if(find_file(set_dir, shortcut) == 0) {
+            perror("this shortcut message does not exist!\n");
+            return 1;
+        }
+
+        REMOVE_SHORTCUT(argv[3]);
     }
     else if(strcmp(argv[crt_arg], "branch") == 0) {
         if(argc == 2) {
