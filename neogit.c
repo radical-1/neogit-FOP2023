@@ -21,6 +21,13 @@ typedef unsigned int Uint;
 #define LOCAL false
 
 
+void make_empty_directories(string  src, string dest, string name); 
+void base_empty_directories(string source, string destination);
+Uint find_head();
+
+string find_file_path(string bigger, string smaller) {
+    return &bigger[strlen(smaller)];
+}
 const string CONFIG_ADDRESS()
 {
     return "/home/radical-1/CONFIG";
@@ -71,6 +78,7 @@ string IS_INITED() {
     }
     return NULL;
 }
+
 
 bool compare_files(const char *file1, const char *file2) {
     FILE *f1 = fopen(file1, "rb");
@@ -223,12 +231,13 @@ void global_information(char model[], char input[])
 
 
 
+
 void ALIAS(char input[], char command[], string project)
 {
     char alias[MAX_LENGTH_STRING];
     sscanf(input, "alias.%s", alias);
 
-    char new_alias[MAX_LENGTH_STRING];
+    char new_alias[2 * MAX_LENGTH_STRING];
     sprintf(new_alias, "%s/LOCAL_ALIAS/%s/%s.txt", CONFIG_ADDRESS(), project, alias);
 
     FILE *NEW_ALIAS = fopen(new_alias, "w");
@@ -237,7 +246,6 @@ void ALIAS(char input[], char command[], string project)
 
     fclose(NEW_ALIAS);  
 }
-
 void GLOBAL_ALIAS(char input[], char command[])
 {
     char aliases[MAX_LENGTH_STRING];
@@ -254,12 +262,10 @@ void GLOBAL_ALIAS(char input[], char command[])
 
     closedir(ALIASES);
 }
-
 void RUN_ALIAS(char command[])
 {
 
     strcat(command, ".txt");
-    printf("%s\n", command);
     char alias_address[MAX_LENGTH_STRING];
     sprintf(alias_address, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
 
@@ -269,7 +275,6 @@ void RUN_ALIAS(char command[])
     while((entry = readdir(DIRECTORY)) != NULL) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
-        printf("%s\n", entry->d_name);
         if(strcmp(entry->d_name , command) == 0) {
             char input_to_system[MAX_LENGTH_STRING];
             char alias_command[MAX_LENGTH_STRING];
@@ -278,16 +283,16 @@ void RUN_ALIAS(char command[])
             fscanf(ALIAS_COMMAND, "%[^\n]", input_to_system);
             system(input_to_system);
             fclose(ALIAS_COMMAND);
-            printf("khar\n");
             return;
         }
 
+    }
     perror("INVALID INPUTS!");
     return;
-    }
 }
 
-//this part will be completed soon
+
+
 void make_branch(char branchName[])
 {
     char branchAddress[100];
@@ -338,7 +343,8 @@ void make_branch(char branchName[])
     fprintf(FIRST, "prev commit : %X\n", prev);
     fclose(FIRST);   
 }
-// think about what is needed to add in .neogit directory when you are making it
+
+
 void Open_dirctories_for_init(char neogitDir[]) 
 {
     char repository[MAX_LENGTH_STRING];
@@ -350,6 +356,7 @@ void Open_dirctories_for_init(char neogitDir[])
     char commit_set[MAX_LENGTH_STRING];
     char add_info[MAX_LENGTH_STRING];
     char alias[MAX_LENGTH_STRING];
+    char repo_on_commit[MAX_LENGTH_STRING];
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
@@ -360,6 +367,7 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(commit_set, "%s/.COMMIT_SET", neogitDir);
     sprintf(add_info, "%s/.ADD_INFO", neogitDir);
     sprintf(alias, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
+    sprintf(repo_on_commit, "%s/.REPO_ON_COMMIT", neogitDir);
 
     mkdir(repository, 0755);
     mkdir(stage, 0755);
@@ -370,6 +378,7 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(commit_set, 0755);
     mkdir(add_info, 0755);
     mkdir(alias, 0755);
+    mkdir(repo_on_commit, 0755);
     
 }
 void init() {
@@ -412,9 +421,15 @@ void init() {
     FILE* IS_OKAY_COMMIT = fopen(is_okay_commit, "w");
     fprintf(IS_OKAY_COMMIT, "YES");
 
+    char is_okay_checkout[MAX_LENGTH_STRING];
+    sprintf(is_okay_checkout, "%s/IS_OKAY_CHECKOUT.txt", neoGitDir);
+    FILE* IS_OKAY_CHECKOUT = fopen(is_okay_checkout, "w");
+    fprintf(IS_OKAY_CHECKOUT, "YES");
+    printf("khare besaz khob\n");
     fclose(GLOBAL_INFO);
     fclose(LOCAL_INFO);
     fclose(IS_OKAY_COMMIT);
+    fclose(IS_OKAY_CHECKOUT);
 
 
     make_branch("master");
@@ -422,6 +437,8 @@ void init() {
 
     printf("Initialized empty Git repository in %s\n", neoGitDir);
 }
+
+
 
 void COPY_FILE(char src[], char dest[], char name[])
 {
@@ -461,16 +478,25 @@ void COPY_FILE(char src[], char dest[], char name[])
 
     printf("File copied successfully\n");
 }
-void COPY_DIR(string src, string destination, char name[]) 
+void COPY_DIR(string src, string dest, char name[]) 
 {
     char source[MAX_LENGTH_STRING];
     sprintf(source, "%s/%s", src, name);
+
+    char destination[MAX_LENGTH_STRING];
+    sprintf(destination, "%s/%s", dest, name);
+
+    DIR *directory = opendir(destination);
+    if (directory == NULL) {
+        mkdir(destination, 0755);
+    }
+    closedir(directory);
+
     DIR *dir = opendir(source);
     if (dir == NULL) {
-        perror("Unable to open the directory");
+        perror("failed to open");
         return;
     }
-    /*this is wrong fix it later!!!!!*/
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -479,6 +505,7 @@ void COPY_DIR(string src, string destination, char name[])
         }
 
         if (entry->d_type == DT_DIR) {
+            
             COPY_DIR(source, destination, entry->d_name);
         } else {
             
@@ -489,28 +516,37 @@ void COPY_DIR(string src, string destination, char name[])
     closedir(dir);
 
 }
+
+
 void ADD_FUNC(string input)
 {
     char cwd[200];
     getcwd(cwd, 200);
+
     if (find_file(cwd, input) == 0) {
         printf("No such a file or directory!\n");
         return;
     }
-    if (check_is_dir(input)) {
-        char dest[500];
-        sprintf(dest, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    char check[MAX_LENGTH_STRING];
+    sprintf(check, "%s/%s", cwd, input);
+    if (check_is_dir(check)) {
+        char dest[MAX_LENGTH_STRING];
+        sprintf(dest, "%s/.neogit/.STAGING_AREA%s", IS_INITED(), find_file_path(cwd, IS_INITED()));
         COPY_DIR(cwd, dest, input);
     } 
     else {
-        char source[300];
-        char destination[300];
-        sprintf(source , "%s", cwd);
-        sprintf(destination, "%s/.neogit/.STAGING_AREA", IS_INITED());
-        COPY_FILE(source, destination, input);
-    }
-}
+        char destination[MAX_LENGTH_STRING];
+        sprintf(destination, "%s/.neogit/.STAGING_AREA%s", IS_INITED(), find_file_path(cwd, IS_INITED()));
 
+        COPY_FILE(cwd, destination, input);
+    }
+
+    char is_okay_checkout[MAX_LENGTH_STRING];
+    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
+    FILE* IS_OKAY = fopen(is_okay_checkout, "w");
+    fprintf(IS_OKAY, "NO\n");
+    fclose(IS_OKAY);
+}
 void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 {
     char add_info[MAX_LENGTH_STRING];
@@ -538,8 +574,6 @@ void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 
     fclose(ADD_TXT);
 }
-
-
 void show_in_add(int depth, int cur, string source, string destination)
 {
     if (cur == 0) printf("-----------------------\n");
@@ -562,11 +596,18 @@ void show_in_add(int depth, int cur, string source, string destination)
         }
 
         char source_path[1024];
+        char destination_path[1024];
 
         snprintf(source_path, sizeof(source_path), "%s/%s", source, entry->d_name);
+        snprintf(destination_path, sizeof(destination_path), "%s/%s", destination, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-            show_in_add(depth , cur + 1, source_path, destination);
+             if(find_file(destination, entry->d_name) == 1)
+                printf("file : %s -- status : STAGED\n", entry->d_name);
+            else
+                printf("file : %s -- status : UNSTAGED\n", entry->d_name);
+
+            show_in_add(depth , cur + 1, source_path, destination_path);
             
         } else {
             if(find_file(destination, entry->d_name) == 1)
@@ -579,31 +620,7 @@ void show_in_add(int depth, int cur, string source, string destination)
 
     closedir(dir);
 }
-//reset part
 
-void HANDELING_DIR(char name_dir[], string cwd, string source, string destination)
-{
-
-    char dirAddress[2 * MAX_LENGTH_STRING];
-    sprintf(dirAddress, "%s/%s", cwd, name_dir);
-    DIR* dir = opendir(dirAddress);
-    if (dir == NULL) {
-        return;
-    }
-    struct dirent* entry;
-
-    while((entry = readdir(dir)) != NULL) {
-        if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
-
-        if(entry->d_type == DT_DIR) {
-            char new_cwd[MAX_LENGTH_STRING];
-            sprintf(new_cwd, "%s/%s", cwd, name_dir);
-            HANDELING_DIR(entry->d_name, new_cwd, source, destination);
-        } else {
-            COPY_FILE(source, destination, entry->d_name);
-        }
-    }
-}
 
 
 void RESET_FUNC(char input[])
@@ -617,11 +634,14 @@ void RESET_FUNC(char input[])
     char cwd[MAX_LENGTH_STRING];
     getcwd(cwd, MAX_LENGTH_STRING);
     char check[MAX_LENGTH_STRING];
-    sprintf(check, "%s/%s", cwd, input);
+    sprintf(check, "%s/%s", source, input);
 
 
     if (check_is_dir(check)) {
-        HANDELING_DIR(input, cwd, source, destination);
+        COPY_DIR(source, destination, input);
+        char rm[MAX_LENGTH_STRING];
+        sprintf(rm, "rm -rf %s/%s", source, input);
+        system(rm);
     } 
     else {
         COPY_FILE(source, destination, input);
@@ -635,6 +655,9 @@ void RESET_FUNC(char input[])
 
 void REDO_FUNC()
 {
+    char cwd[MAX_LENGTH_STRING];
+    getcwd(cwd, MAX_LENGTH_STRING);
+
     struct dirent *entry;
     string unstage = make_string(500);
     sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
@@ -643,15 +666,14 @@ void REDO_FUNC()
     char stage[MAX_LENGTH_STRING];
     sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
 
-    char cwd[MAX_LENGTH_STRING];
-    getcwd(cwd, MAX_LENGTH_STRING);
-
 
     while((entry = readdir(dp)) != NULL) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         if (check_is_dir(entry->d_name)) {
-            
-            HANDELING_DIR(entry->d_name, cwd, unstage, stage);
+            COPY_DIR(unstage, stage, entry->d_name);
+            char command[500];
+            sprintf(command, "rm -rf %s/.neogit/.UNSTAGED/%s", IS_INITED(), entry->d_name);
+            system(command);
         } 
         else {
             COPY_FILE(unstage, stage, entry->d_name);
@@ -730,78 +752,122 @@ string attribute(string input)
     return permissions;
     }
 }
-
-void STATUS_FUNC(string input)
+void STATUS_FUNC_3(string staging, string unstage, string last_repo)
 {
-    /*need debug*/
-    DIR* FOLDER = opendir(input);
-
-
-    char stage[MAX_LENGTH_STRING];
-    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
-    char repository[MAX_LENGTH_STRING];
-    sprintf(repository, "%s/.neogit/.LOCAL_REPOSITORY", IS_INITED());
-    char unstage[MAX_LENGTH_STRING];
-    sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
- 
-
+    DIR* REPO = opendir(last_repo);
+    
     struct dirent* entry;
 
+    while((entry = readdir(REPO)) != NULL) {
+        if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
 
-    while((entry = readdir(FOLDER)) != NULL) {
-        if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, ".neogit") == 0) {
-            continue;
-        }
         if(entry->d_type == DT_DIR) {
-            char new_input[MAX_LENGTH_STRING];
-            sprintf(new_input, "%s/%s", input, entry->d_name);
-            STATUS_FUNC(new_input);
-        }
-        else {
-            char base_file[MAX_LENGTH_STRING];
-            sprintf(base_file, "%s/%s", input , entry->d_name);
-            if(find_file(stage, entry->d_name) == 1) {
-                char stage_file[MAX_LENGTH_STRING];
-                sprintf(stage_file, "%s/%s", stage, entry->d_name);
-                if(strcmp(attribute(base_file), attribute(stage_file))) {
-                    printf("file name : %s --- status : +T\n", entry->d_name);
-                }
-                if(compare_files(base_file, stage_file) == false) {
-                    printf("file name : %s --- status : +M\n", entry->d_name);
-                }
+            char new_stage[MAX_LENGTH_STRING];
+            char new_repo[MAX_LENGTH_STRING];
+            char new_unstage[MAX_LENGTH_STRING];
+
+            sprintf(new_stage, "%s/%s", staging, entry->d_name);
+            sprintf(new_repo, "%s/%s", last_repo, entry->d_name);
+            sprintf(new_unstage, "%s/%s", unstage, entry->d_name);
+
+            STATUS_FUNC_3(new_stage, new_unstage, new_repo);
+        } else {
+            if(!find_file(staging, entry->d_name) && !find_file(unstage, entry->d_name)) {
+                printf("file name : %s --- status : -D\n", entry->d_name);
             }
-            else if(find_file(repository, entry->d_name) == 1) {
-                char repo_file[2 * MAX_LENGTH_STRING];
-                sprintf(repo_file, "%s/%s", repository, entry->d_name);
-
-
-                if(strcmp(attribute(base_file), attribute(repo_file))) {
-                printf("file name : %s --- status : -T\n", entry->d_name);
-                }
-                else if(compare_files(base_file, repo_file) == false) {
-                    printf("file name : %s --- status : -M\n", entry->d_name);
-                }
-            }
-            else if(find_file(unstage, entry->d_name)) {
-                char unstage_file[2 * MAX_LENGTH_STRING];
-                sprintf(unstage_file, "%s/%s", unstage, entry->d_name);
-
-
-                if(strcmp(attribute(base_file), attribute(unstage_file))) {
-                    printf("file name : %s --- status : -T\n", entry->d_name);
-                }
-                else if(compare_files(base_file, unstage_file) == false) {
-                    printf("file name : %s --- status : -M\n", entry->d_name);
-                }
-            }
-            else {
-                printf("file name : %s --- status : -A\n", entry->d_name);
-            } 
         }
     }
-    
-    /*handle delete part*/
+
+    closedir(REPO);
 }
+void STATUS_FUNC_2(string unstage, string last_repo)
+{
+    DIR* UNSTAGE = opendir(unstage);
+
+   struct dirent* entry;
+
+   while((entry = readdir(UNSTAGE)) != NULL) {
+    if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
+
+    if(entry->d_type == DT_DIR) {
+        char new_unstage[MAX_LENGTH_STRING];
+        char new_repo[MAX_LENGTH_STRING];
+        sprintf(new_unstage, "%s/%s", unstage, entry->d_name);
+        sprintf(new_repo, "%s/%s", last_repo, entry->d_name);
+        STATUS_FUNC_2(new_unstage, new_repo);
+    } else {
+        if(find_file(last_repo, entry->d_name)) {
+            char file_in_unstage[MAX_LENGTH_STRING];
+            char file_in_repo[MAX_LENGTH_STRING];
+            sprintf(file_in_unstage, "%s/%s", unstage, entry->d_name);
+            sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
+
+            if(strcmp(attribute(file_in_repo), attribute(file_in_unstage))) {
+                printf("file name : %s --- status : -T\n", entry->d_name);
+            }
+            else if(compare_files(file_in_repo, file_in_unstage) == false) {
+                printf("file name : %s --- status : -M\n", entry->d_name);
+            } 
+        } else {
+            printf("file name : %s --- status : -A\n", entry->d_name);
+        }
+    }
+   }
+   closedir(UNSTAGE);
+}
+void STATUS_FUNC_1(string staging, string last_repo)
+{
+   DIR* STAGING = opendir(staging);
+
+   struct dirent* entry;
+
+   while((entry = readdir(STAGING)) != NULL) {
+    if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
+
+    if(entry->d_type == DT_DIR) {
+        char new_stage[MAX_LENGTH_STRING];
+        char new_repo[MAX_LENGTH_STRING];
+        sprintf(new_stage, "%s/%s", staging, entry->d_name);
+        sprintf(new_repo, "%s/%s", last_repo, entry->d_name);
+        STATUS_FUNC_1(new_stage, new_repo);
+    } else {
+        if(find_file(last_repo, entry->d_name)) {
+            char file_in_stage[MAX_LENGTH_STRING];
+            char file_in_repo[MAX_LENGTH_STRING];
+            sprintf(file_in_stage, "%s/%s", staging, entry->d_name);
+            sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
+
+            if(strcmp(attribute(file_in_repo), attribute(file_in_stage))) {
+                printf("file name : %s --- status : +T\n", entry->d_name);
+            }
+            else if(compare_files(file_in_repo, file_in_stage) == false) {
+                printf("file name : %s --- status : +M\n", entry->d_name);
+            } 
+        } else {
+            printf("file name : %s --- status : +A\n", entry->d_name);
+        }
+    }
+
+   }
+   closedir(STAGING);
+}
+void RUN_STATUS()
+{
+    char last_repo[MAX_LENGTH_STRING];
+    char stage[MAX_LENGTH_STRING];
+    char unstage[MAX_LENGTH_STRING];
+
+    sprintf(last_repo, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), find_head());
+    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
+    //printf("%s\n%s\n%s\n", last_repo, stage, unstage);
+    STATUS_FUNC_1(stage, last_repo);
+    STATUS_FUNC_2(unstage, last_repo);
+    STATUS_FUNC_3(stage, unstage, last_repo);
+
+}
+
+
 
 void PUT_COMMIT_INFORMATION(string Time, string Message, string AothurName, string AothurEmail, string branch, Uint commit_id, int num_commited)
 {
@@ -837,7 +903,46 @@ void PUT_COMMIT_INFORMATION(string Time, string Message, string AothurName, stri
     fclose(COMMIT_TXT);
     
 }
+void make_repo_on_commit(Uint commit_id)
+{
+    char repo_path[MAX_LENGTH_STRING];
+    char repo_on_commit_path[MAX_LENGTH_STRING];
 
+    sprintf(repo_path, "%s/.neogit/.LOCAL_REPOSITORY", IS_INITED());
+    sprintf(repo_on_commit_path, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(),  commit_id);
+
+    DIR* MAIN_REPO = opendir(repo_path);
+    mkdir(repo_on_commit_path, 0755);
+
+    struct dirent* entry;
+
+    while((entry = readdir(MAIN_REPO)) != NULL) {
+        if (strcmp(entry->d_name , ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(entry->d_type == DT_DIR) COPY_DIR(repo_path, repo_on_commit_path, entry->d_name);
+        else COPY_FILE(repo_path, repo_on_commit_path, entry->d_name);
+    } 
+    closedir(MAIN_REPO);
+}
+void number_of_staging(string stage, int* last_num)
+{
+    DIR* STAGE = opendir(stage);
+
+    struct dirent* entry;
+    
+    while((entry = readdir(STAGE)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(entry->d_type == DT_DIR) {
+            char new_stage[MAX_LENGTH_STRING];
+            sprintf(new_stage, "%s/%s", stage, entry->d_name);
+            number_of_staging(new_stage, last_num);
+        } else {
+            (*last_num)++;
+        }
+    }
+    closedir(STAGE);
+}
 void make_commit(Uint prev_commit, string branch, string commit_message, string aothurName, string aothurEmail)
 {
     Uint commit_id = giveRandomNumber();
@@ -851,14 +956,7 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
     int num_stage = 0;
     char stage_address[MAX_LENGTH_STRING];
     sprintf(stage_address, "%s/.neogit/.STAGING_AREA", IS_INITED());
-    struct dirent* stage;
-    DIR* STAGING_AREA = opendir(stage_address);
-    while((stage = readdir(STAGING_AREA)) != NULL) {
-        if (strcmp(stage->d_name, ".") == 0 || strcmp(stage->d_name ,"..") == 0)
-            continue;
-        num_stage++;
-    }
-    closedir(STAGING_AREA);
+    number_of_staging(stage_address, &num_stage);
 
     PUT_COMMIT_INFORMATION(cur_time, commit_message, aothurName, aothurEmail, branch, commit_id, num_stage);
     
@@ -917,7 +1015,7 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
     fprintf(HEAD, "HEAD COMMIT ID : %X\n", commit_id);
     fclose(COMMIT);
     fclose(HEAD);
-
+    make_repo_on_commit(commit_id);
     printf("your commit was successfull!\nCommit Date & Time : %s\nCommit ID : %X\nCommit Message : %s\n", cur_time, commit_id, commit_message);    
 }
 void COMMIT_FUNC(string message)
@@ -960,7 +1058,15 @@ void COMMIT_FUNC(string message)
     fclose(info);
 
     make_commit(prev_commit, cur_branch, message, name, email);
+
+    char is_okay_checkout[MAX_LENGTH_STRING];
+    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
+    FILE* IS_OKAY_CHECKOUT = fopen(is_okay_checkout, "w");
+    fprintf(IS_OKAY_CHECKOUT, "YES\n");
+    fclose(IS_OKAY_CHECKOUT);
 }
+
+
 
 void SET_FUNC(string message, string shortcut) 
 {
@@ -970,7 +1076,6 @@ void SET_FUNC(string message, string shortcut)
     fputs(message, SHORTCUT);
     fclose(SHORTCUT);
 }
-
 void REMOVE_SHORTCUT(string shorutcut)
 {
     int ret;
@@ -986,7 +1091,6 @@ void REMOVE_SHORTCUT(string shorutcut)
         printf("Error: unable to delete the Shortcut Message!\n");
     }
 }
-
 string find_message(string shortucut)
 {
     char fileName[MAX_LENGTH_STRING];
@@ -998,6 +1102,8 @@ string find_message(string shortucut)
     return Message;
     
 }
+
+
 
 void PRITNT_BRANCHES()
 {
@@ -1011,7 +1117,6 @@ void PRITNT_BRANCHES()
         printf("branch name : %s\n", entry->d_name);
     }
 }
-
 void COPY_COMMIT(string source , string destination, string name)
 {
     if(find_file(destination, name) == 1) {
@@ -1033,11 +1138,10 @@ void COPY_COMMIT(string source , string destination, string name)
         }
     }
 }
-
 void change_folder(Uint commit_id)
 {
     char source[MAX_LENGTH_STRING];
-    sprintf(source, "%s/.neogit/.COMMITS/%X", IS_INITED(), commit_id);
+    sprintf(source, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), commit_id);
     DIR* COMMIT = opendir(source);
     if(COMMIT == NULL) {
         return;
@@ -1047,39 +1151,42 @@ void change_folder(Uint commit_id)
     while((entry = readdir(COMMIT)) != NULL) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
-        COPY_COMMIT(source, IS_INITED(), entry->d_name);
+        if(entry->d_type == DT_DIR) {
+            COPY_DIR(source, IS_INITED(), entry->d_name);
+        } else {
+            COPY_FILE(source, IS_INITED(), entry->d_name);
+        }
     }
 
 }
-
 bool EVERYTHING_IS_COMMITED()
 {
-    char stage[MAX_LENGTH_STRING];
-    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    char is_okay_checkout[MAX_LENGTH_STRING];
+    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
+    FILE* IS_OKAY = fopen(is_okay_checkout, "r");
+    char condition[20];
+    fscanf(IS_OKAY, "%s\n", condition);
+    fclose(IS_OKAY);
 
-    DIR* STAGE = opendir(stage);
-
-    struct dirent* entry;
-    int staged = 0;
+    if (strcmp(condition, "YES") == 0) return true;
+    else return false;
     
-    while((entry = readdir(STAGE)) != NULL) {
-        if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
-        
-        staged++;
-    }
-    if(staged) return false;
-
-    return true;
 }
 void BRANCH_CHECKOUT(string branch)
 {
     char info[MAX_LENGTH_STRING];
-    sprintf(info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
     char temp_info[MAX_LENGTH_STRING];
-    sprintf(temp_info, "%s/.neogit/info.txt", IS_INITED());
+
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
+    sprintf(temp_info, "%s/LOCAL_INFO/temp.txt", CONFIG_ADDRESS());
+
 
     FILE* INFO = fopen(info, "r");
     FILE* TMP_INFO = fopen(temp_info, "w");
+    if(INFO == NULL) {
+        printf("%s\n", info);
+        return;
+    }
     for(int i = 0; i < 4; i++) {
         char temp[MAX_LENGTH_STRING];
         fgets(temp, MAX_LENGTH_STRING, INFO);
@@ -1106,7 +1213,6 @@ void BRANCH_CHECKOUT(string branch)
     change_folder(head_id);
 
 }
-
 void COMMIT_CHECKOUT(Uint id)
 {   
     char is_okay[MAX_LENGTH_STRING];
@@ -1114,14 +1220,11 @@ void COMMIT_CHECKOUT(Uint id)
     FILE* IS_OKAY_COMMIT = fopen(is_okay, "w");
     fprintf(IS_OKAY_COMMIT, "NO");
     fclose(IS_OKAY_COMMIT);
-    
     change_folder(id);
 }
-
 void CHECKOUT(string input)
 {
-    bool is_okay = EVERYTHING_IS_COMMITED();
-    if(!is_okay) {
+    if(!EVERYTHING_IS_COMMITED()) {
         perror("please first commit then checkout!");
         exit(1);
     }
@@ -1129,10 +1232,10 @@ void CHECKOUT(string input)
     sprintf(branch_dest, "%s/.neogit/.BRANCHES", IS_INITED());
 
     char commit_dest[MAX_LENGTH_STRING];
-    sprintf(commit_dest, "%s/.neogit/.COMMITS", IS_INITED());
-
+    sprintf(commit_dest, "%s/.neogit/.REPO_ON_COMMIT", IS_INITED());
+   
     if(find_file(branch_dest, input)) {
-       BRANCH_CHECKOUT(input);
+        BRANCH_CHECKOUT(input);
     }
     else if(find_file(commit_dest, input)) {
         Uint id;
@@ -1159,7 +1262,6 @@ void PRINT_LOG(int num_commit, string address)
     fclose(fp);
     printf("-------end-------\n\n");
 }
-
 void LOG_FUNC(int num)
 {
     char commit_info[MAX_LENGTH_STRING];
@@ -1180,7 +1282,6 @@ void LOG_FUNC(int num)
         num--;
     }
 }
-
 void LOG_BRANCH(string branch)
 {
     char commit_info[MAX_LENGTH_STRING];
@@ -1211,7 +1312,6 @@ void LOG_BRANCH(string branch)
     }
 
 }
-
 void LOG_AUTHOR(string author)
 {
     char commit_info[MAX_LENGTH_STRING];
@@ -1242,7 +1342,6 @@ void LOG_AUTHOR(string author)
     }
 
 }
-
 void LOG_SEARCH(string word)
 {
     char commit_info[MAX_LENGTH_STRING];
@@ -1272,8 +1371,6 @@ void LOG_SEARCH(string word)
         num_commit--;        
     }
 }
-
-
 int compare_date_time_strings(const char *date_time1, const char *date_time2) {
     struct tm tm1, tm2;
     time_t t1, t2;
@@ -1294,7 +1391,6 @@ int compare_date_time_strings(const char *date_time1, const char *date_time2) {
         return 0;
     }
 }
-
 void LOG_TIME(string inputTime, int valid)
 {
     char commit_info[MAX_LENGTH_STRING];
@@ -1328,6 +1424,7 @@ void LOG_TIME(string inputTime, int valid)
         num_commit--;        
     }  
 }
+
 
 Uint find_commit(int n) 
 {
@@ -1367,7 +1464,6 @@ Uint find_commit(int n)
     }
     return id;
 }
-
 Uint find_head()
 {
     Uint head;
@@ -1387,9 +1483,83 @@ Uint find_head()
 }
 
 
+void make_empty_directories(string src, string dest, string name) 
+{
+    char source[MAX_LENGTH_STRING];
+    sprintf(source, "%s/%s", src, name);
+
+    char destination[MAX_LENGTH_STRING];
+    sprintf(destination, "%s/%s", dest, name);
+
+    DIR *directory = opendir(destination);
+    if (directory == NULL) {
+        mkdir(destination, 0755);
+    }
+    closedir(directory);
+
+    DIR *dir = opendir(source);
+    if (dir == NULL) {
+        perror("failed to open");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) {
+            continue;
+        }
+
+        if (entry->d_type == DT_DIR) {
+            
+            make_empty_directories(source, destination, entry->d_name);
+        }   
+    }
+
+    closedir(dir);
+
+
+}
+void base_empty_directories(string source, string destination)
+{
+    DIR* FOLDER = opendir(source);
+    if(FOLDER == NULL) {
+        perror("it is an error from base part!");
+        exit(1);
+    }
+
+    struct dirent* entry;
+
+    while((entry = readdir(FOLDER)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) {
+            continue;
+        }
+
+        if (entry->d_type == DT_DIR) {
+            
+            make_empty_directories(source, destination, entry->d_name);
+        }   
+    }
+    closedir(FOLDER);
+}
+
+
 
 int main(int argc, char *argv[])
-{    
+{  
+    if(IS_INITED()) {
+        char repository[MAX_LENGTH_STRING];
+        char stage[MAX_LENGTH_STRING];
+        char unstage[MAX_LENGTH_STRING];
+
+        sprintf(repository,"%s/.neogit/.LOCAL_REPOSITORY",IS_INITED());
+        sprintf(stage,"%s/.neogit/.STAGING_AREA",IS_INITED());
+        sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
+
+
+        base_empty_directories(IS_INITED(), repository);
+        base_empty_directories(IS_INITED(), stage);
+        base_empty_directories(IS_INITED(),  unstage); 
+    } 
     int crt_arg = 1; //current argument
     if (strcmp(argv[crt_arg], "init") == 0) {
         init();
@@ -1458,19 +1628,15 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[crt_arg], "-f") == 0) {
             for (int i = crt_arg + 1; i < argc; i++) {
                 RESET_FUNC(argv[i]);
-                char command[200];
-                sprintf(command, "rm -r %s/.neogit/.STAGING_AREA/%s", IS_INITED(), argv[i]);
-                system(command);
             }
         } else {
             RESET_FUNC(argv[crt_arg]);
             char command[200];
-            sprintf(command, "rm -r %s/.neogit/.STAGING_AREA/%s", IS_INITED(), argv[crt_arg]);
-            system(command);
+            
         }
     }
     else if(strcmp(argv[crt_arg], "status") == 0) {
-        STATUS_FUNC(IS_INITED());
+        RUN_STATUS();
     }
     else if(strcmp(argv[crt_arg], "commit") == 0) {
         if(strcmp(argv[2], "-m") == 0) {
@@ -1635,6 +1801,6 @@ int main(int argc, char *argv[])
     else {
         RUN_ALIAS(argv[1]);
     }
-    
+
     return 0;
 }
