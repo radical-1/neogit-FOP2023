@@ -17,13 +17,14 @@ typedef char* string;
 #define remove_string(str) free(str)
 typedef unsigned int Uint;
 #define MAX_LENGTH_STRING 500
-#define GLOBAL 1
-#define LOCAL 0
-
-int IS_GLOBAL = LOCAL;
+#define GLOBAL true
+#define LOCAL false
 
 
-bool check_is_global(char*, int*);
+const string CONFIG_ADDRESS()
+{
+    return "/home/radical-1/CONFIG";
+}
 // random number for hash
 Uint giveRandomNumber() {
     // Initialize random seed
@@ -128,79 +129,164 @@ int check_is_dir(string name)
     return 0;
 }
 // base setting
-void information(char* input[])
+
+string name_project()
 {
-    /*need to debug*/
-    printf("debug this part first!!!!\n");
-    if (IS_GLOBAL == LOCAL) {
-        if (!IS_INITED()) {
-            printf(".neogit not found in current working directory. Please run `neogit init` first\n");
-            return;
+    string name = make_string(MAX_LENGTH_STRING);
+    string inited = IS_INITED();
+    for(int i = strlen(inited) - 2; i >= 0; i--) {
+        if(inited[i] == '/') {
+            return &inited[i + 1];
+            break;
         }
     }
+}
+
+
+void information(char model[], char input[], string project)
+{
+    
     int MOD;
     int EMAIL = 1;
     int NAME = 0;
-    if (strcmp(input[0], "user.name") == 0)
+    if (strcmp(model, "user.name") == 0)
         MOD = NAME;
-    else if (strcmp(input[0], "user.email") == 0)
+    else if (strcmp(model, "user.email") == 0)
         MOD = EMAIL;
     else {
         printf("INVALID INPUTS!\n");
         return;
     }
-    if (IS_GLOBAL == GLOBAL) {
-        FILE* GLOB = fopen("/GLOBAL_info.txt", "r+");
-        if (MOD == NAME) {
-            fprintf(GLOB, "user.name = %s", input[1]);
-        }
-        else if (MOD == EMAIL) {
-            char ch[200];
-            fgets(ch, 200, GLOB);
 
-            fprintf(GLOB, "user.email = %s", input[1]);
-        }
-        fclose(GLOB);
+    char info[MAX_LENGTH_STRING];
+    char temp_file[MAX_LENGTH_STRING];
+    sprintf(info, "%s/LOCAL_INFO/%s", CONFIG_ADDRESS(), project);
+    sprintf(temp_file, "%s/LOCAL_INFO/temp.txt", CONFIG_ADDRESS());
+
+    FILE* INFO = fopen(info, "r");
+    if(INFO == NULL) {
+        printf("%s\n", info);
+        return;
     }
-    char local_info[500];
-    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
-    FILE* LOC  = fopen(local_info, "r+");
+    FILE* TEMP = fopen(temp_file, "w");
+
     if (MOD == NAME) {
-            fprintf(LOC, "user.name = %s\n", input[1]);
+        for (int i = 0; i < 4; i++) {
+            char line[MAX_LENGTH_STRING];
+            fgets(line, MAX_LENGTH_STRING, INFO);
+            if(i == 0) {
+                char temp_line[MAX_LENGTH_STRING];
+                sprintf(temp_line, "user.name : %s\n", input);
+                fputs(temp_line, TEMP);
+            } else {
+                fputs(line, TEMP);
+            }
         }
-        else if (MOD == EMAIL) {
-            char ch[200];
-            fgets(ch, 200, LOC);
-            fprintf(LOC, "user.email = %s\n", input[1]);
+    }
+    else if(MOD == EMAIL) {
+        for (int i = 0; i < 4; i++) {
+            char line[MAX_LENGTH_STRING];
+            fgets(line, MAX_LENGTH_STRING, INFO);
+            if(i == 1) {
+                char temp_line[MAX_LENGTH_STRING];
+                sprintf(temp_line, "user.email : %s\n", input);
+                fputs(temp_line, TEMP);
+            } else {
+                fputs(line, TEMP);
+            }
         }
-        fclose(LOC);
+    }
+
+    fclose(INFO);
+    fclose(TEMP);
+
+
+    remove(info);
+    rename(temp_file, info);
+
 }
-void ALIAS(char* input[])
+
+void global_information(char model[], char input[])
 {
-    printf ("%s = %s\n", input[0], input[1]);
-    if(IS_GLOBAL == LOCAL) {
-        if (IS_INITED() == NULL) {
-            printf(".neogit not found in current working directory. Please run `neogit init` first\n");
+    char infoes[MAX_LENGTH_STRING];
+    sprintf(infoes, "%s/LOCAL_INFO", CONFIG_ADDRESS());
+    DIR* INFOES = opendir(infoes);
+
+    struct dirent* entry;
+
+    while((entry = readdir(INFOES)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        information(model, input, entry->d_name);
+    }
+}
+
+
+
+void ALIAS(char input[], char command[], string project)
+{
+    char alias[MAX_LENGTH_STRING];
+    sscanf(input, "alias.%s", alias);
+
+    char new_alias[MAX_LENGTH_STRING];
+    sprintf(new_alias, "%s/LOCAL_ALIAS/%s/%s.txt", CONFIG_ADDRESS(), project, alias);
+
+    FILE *NEW_ALIAS = fopen(new_alias, "w");
+
+    fputs(command, NEW_ALIAS);
+
+    fclose(NEW_ALIAS);  
+}
+
+void GLOBAL_ALIAS(char input[], char command[])
+{
+    char aliases[MAX_LENGTH_STRING];
+    sprintf(aliases, "%s/LOCAL_ALIAS", CONFIG_ADDRESS());
+    DIR* ALIASES = opendir(aliases);
+
+    struct dirent* entry;
+
+    while((entry = readdir(ALIASES)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        ALIAS(input, command, entry->d_name);
+    }
+
+    closedir(ALIASES);
+}
+
+void RUN_ALIAS(char command[])
+{
+
+    strcat(command, ".txt");
+    printf("%s\n", command);
+    char alias_address[MAX_LENGTH_STRING];
+    sprintf(alias_address, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
+
+    DIR*  DIRECTORY = opendir(alias_address);
+    struct dirent* entry;
+
+    while((entry = readdir(DIRECTORY)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        printf("%s\n", entry->d_name);
+        if(strcmp(entry->d_name , command) == 0) {
+            char input_to_system[MAX_LENGTH_STRING];
+            char alias_command[MAX_LENGTH_STRING];
+            sprintf(alias_command, "%s/%s", alias_address, command);
+            FILE* ALIAS_COMMAND = fopen(alias_command, "r");
+            fscanf(ALIAS_COMMAND, "%[^\n]", input_to_system);
+            system(input_to_system);
+            fclose(ALIAS_COMMAND);
+            printf("khar\n");
             return;
         }
-    }
-    char alias[200];
-    char command[200];
-    sscanf(input[0], "alias.%s", alias);
-    strcpy(command, input[1]);
-    if(IS_GLOBAL == GLOBAL) {
-        FILE* GLOB = fopen("/GLOBAL_alias.txt", "a");
-        fprintf(GLOB, "%s = %s\n", alias, command);
-        fclose(GLOB);       
-    }
-    if (IS_INITED()) {
-        char local_alias[300];
-        sprintf(local_alias, "%s/.neogit/LOCAL_alias.txt", IS_INITED());
-        FILE* LOC = fopen(local_alias, "a");
-        fprintf(LOC, "%s = %s\n", alias, command);
-        fclose(LOC);
+
+    perror("INVALID INPUTS!");
+    return;
     }
 }
+
 //this part will be completed soon
 void make_branch(char branchName[])
 {
@@ -213,7 +299,7 @@ void make_branch(char branchName[])
     sprintf(commits, "%s/COMMITS", branchAddress);
     FILE* HEAD_COMMIT = fopen(head_commit, "w");
     char local_info[MAX_LENGTH_STRING];
-    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
+    sprintf(local_info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
     FILE* INFO = fopen(local_info, "r");
     if(INFO == NULL) {
         perror("unable to open file\n");
@@ -226,7 +312,7 @@ void make_branch(char branchName[])
     Uint head;
     Uint prev = 0;
     sscanf(temp, " commit_id : %X\n", &head);
-    fprintf(HEAD_COMMIT, " HEAD COMMIT ID : %X", head);
+    fprintf(HEAD_COMMIT, "HEAD COMMIT ID : %X", head);
     fclose(HEAD_COMMIT);
     fclose(INFO);
     mkdir(commits, 0755);
@@ -263,6 +349,7 @@ void Open_dirctories_for_init(char neogitDir[])
     char commit_info[MAX_LENGTH_STRING];
     char commit_set[MAX_LENGTH_STRING];
     char add_info[MAX_LENGTH_STRING];
+    char alias[MAX_LENGTH_STRING];
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
@@ -272,6 +359,7 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(commit_info, "%s/.COMMIT_INFO", neogitDir);
     sprintf(commit_set, "%s/.COMMIT_SET", neogitDir);
     sprintf(add_info, "%s/.ADD_INFO", neogitDir);
+    sprintf(alias, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
 
     mkdir(repository, 0755);
     mkdir(stage, 0755);
@@ -281,6 +369,7 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(commit_info, 0755);
     mkdir(commit_set, 0755);
     mkdir(add_info, 0755);
+    mkdir(alias, 0755);
     
 }
 void init() {
@@ -299,10 +388,14 @@ void init() {
 
 
     char local_info[MAX_LENGTH_STRING];
-    sprintf(local_info, "%s/LOCAL_info.txt", neoGitDir);
+    sprintf(local_info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
     FILE* LOCAL_INFO = fopen(local_info, "w");
 
-    FILE* GLOBAL_INFO = fopen("/GLOBAL_info.txt", "r");
+    char global_info[MAX_LENGTH_STRING];
+    sprintf(global_info, "%s/GLOBAL_info.txt",  CONFIG_ADDRESS());
+    FILE* GLOBAL_INFO = fopen(global_info, "r");
+
+
     if (GLOBAL_INFO == NULL){
         printf("error opening");
         exit(1);
@@ -334,7 +427,7 @@ void COPY_FILE(char src[], char dest[], char name[])
 {
     char destinationAddress[MAX_LENGTH_STRING];
     sprintf(destinationAddress, "%s/%s", dest, name);
-    printf("%s\n", destinationAddress);
+
     FILE *source, *destination;
 
 
@@ -796,16 +889,13 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
         } else {
             COPY_FILE(stage_address, repo_address, stg->d_name);
         }
-        int result = rename(source , destination);
-        if(result == 0) {
-            printf("File moved successfully.\n");
-        } else {
-            printf("Unable to move the file.\n");
-        }
+        rename(source , destination);
+   
     }
     char local_info[MAX_LENGTH_STRING];
-    sprintf(local_info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
+    sprintf(local_info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
     FILE* INFO = fopen(local_info, "r+");
+    
     char line[MAX_LENGTH_STRING];
     for(int i = 0;  i < 3; i++) {
         fgets(line, MAX_LENGTH_STRING, INFO);
@@ -821,7 +911,7 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
     fprintf(COMMIT, "prev commit : %X\n", prev_commit);
     char head_commit[MAX_LENGTH_STRING];
     sprintf(head_commit, "%s/.neogit/.BRANCHES/%s/HEAD_COMMIT.txt", IS_INITED(), branch);
-    printf("%s\n", head_commit);
+
     FILE* HEAD = fopen(head_commit, "w");
     
     fprintf(HEAD, "HEAD COMMIT ID : %X\n", commit_id);
@@ -846,8 +936,8 @@ void COMMIT_FUNC(string message)
 
 
     char infoAddress[MAX_LENGTH_STRING];
-    sprintf(infoAddress, "%s/.neogit/LOCAL_info.txt", IS_INITED());
-    FILE* info = fopen(infoAddress, "r");\
+    sprintf(infoAddress, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
+    FILE* info = fopen(infoAddress, "r");
 
     string line = make_string(MAX_LENGTH_STRING);
     char name[MAX_LENGTH_STRING];
@@ -856,10 +946,10 @@ void COMMIT_FUNC(string message)
     Uint prev_commit;
 
     fgets(line, MAX_LENGTH_STRING, info);
-    sscanf(line, "user.name = %[^\n]", name);
+    sscanf(line, "user.name : %[^\n]", name);
 
     fgets(line, MAX_LENGTH_STRING, info);
-    sscanf(line, "user.email = %[^\n]", email);
+    sscanf(line, "user.email : %[^\n]", email);
 
     fgets(line , MAX_LENGTH_STRING, info);
     sscanf (line , "branch : %[^\n]", cur_branch);
@@ -949,7 +1039,9 @@ void change_folder(Uint commit_id)
     char source[MAX_LENGTH_STRING];
     sprintf(source, "%s/.neogit/.COMMITS/%X", IS_INITED(), commit_id);
     DIR* COMMIT = opendir(source);
-    
+    if(COMMIT == NULL) {
+        return;
+    }
     struct dirent* entry;
 
     while((entry = readdir(COMMIT)) != NULL) {
@@ -1006,8 +1098,10 @@ void BRANCH_CHECKOUT(string branch)
     char head[MAX_LENGTH_STRING];
     sprintf(head, "%s/.neogit/.BRANCHES/%s/HEAD_COMMIT.txt", IS_INITED(), branch);
     FILE* HEAD = fopen(head, "r");
+  
     Uint head_id;
     fscanf(HEAD, "HEAD COMMIT ID : %X\n", &head_id);
+
     fclose(HEAD);
     change_folder(head_id);
 
@@ -1108,7 +1202,7 @@ void LOG_BRANCH(string branch)
             fgets(line, MAX_LENGTH_STRING, file);
         }
         char read_branch[100];
-        sscanf(line , "Branch : %s\n", read_branch);
+        sscanf(line , "Branch : %[^\n]", read_branch);
         if(strcmp(read_branch , branch) == 0) {
             PRINT_LOG(num_commit, address);
         }
@@ -1245,7 +1339,7 @@ Uint find_commit(int n)
 
     Uint id = 0;
     char info[MAX_LENGTH_STRING];
-    sprintf(info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
     FILE* INFO = fopen(info, "r");
     char line[MAX_LENGTH_STRING];
     for (int i = 0; i < 4; i++) fgets(line, MAX_LENGTH_STRING, INFO);
@@ -1278,7 +1372,7 @@ Uint find_head()
 {
     Uint head;
     char info[MAX_LENGTH_STRING];
-    sprintf(info, "%s/.neogit/LOCAL_info.txt", IS_INITED());
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
     FILE *INFO = fopen(info, "r");
     char line[MAX_LENGTH_STRING];
     for(int i = 0; i < 4; i++) {
@@ -1296,19 +1390,28 @@ Uint find_head()
 
 int main(int argc, char *argv[])
 {    
-    
     int crt_arg = 1; //current argument
     if (strcmp(argv[crt_arg], "init") == 0) {
         init();
         return 0;
     }
     else if (strcmp(argv[crt_arg], "config") == 0) {
-        crt_arg++;
-        check_is_global(argv[crt_arg], &crt_arg);
-        if (strncmp(argv[crt_arg], "alias", 5) == 0) {
-            ALIAS(&argv[crt_arg]);
+        if(strcmp(argv[2], "-global") == 0) {
+            if(strncmp(argv[3], "alias.", 6) == 0) {
+                GLOBAL_ALIAS(argv[3], argv[4]); 
+            }
+            else global_information(argv[3], argv[4]);
         }
-        else information(&argv[crt_arg]);
+        else {
+            if(strncmp(argv[2], "alias.", 6) == 0) {
+                ALIAS(argv[2], argv[3], name_project());   
+            }
+            else {
+                char project[MAX_LENGTH_STRING];
+                sprintf(project, "%s.txt", name_project());
+                information(argv[2], argv[3],  project);
+            }
+        }
         return 0;
     }
     if(IS_INITED() == NULL) {
@@ -1530,17 +1633,8 @@ int main(int argc, char *argv[])
         }
     }
     else {
-        string input = make_string(300);
+        RUN_ALIAS(argv[1]);
     }
-    printf("end of our project!\n");
+    
     return 0;
-}
-bool check_is_global(char argv[], int* crt_arg)
-{
-    if(strcmp(argv, "-global") == 0) {
-        IS_GLOBAL = GLOBAL;
-        (*crt_arg)++;
-        return true;
-    }
-    return false;
 }
