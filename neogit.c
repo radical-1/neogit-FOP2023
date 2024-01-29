@@ -24,6 +24,9 @@ typedef unsigned int Uint;
 void make_empty_directories(string  src, string dest, string name); 
 void base_empty_directories(string source, string destination);
 Uint find_head();
+string find_name();
+string find_email();
+string find_branch();
 
 string find_file_path(string bigger, string smaller) {
     return &bigger[strlen(smaller)];
@@ -357,6 +360,7 @@ void Open_dirctories_for_init(char neogitDir[])
     char add_info[MAX_LENGTH_STRING];
     char alias[MAX_LENGTH_STRING];
     char repo_on_commit[MAX_LENGTH_STRING];
+    char tags[MAX_LENGTH_STRING];
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
@@ -368,6 +372,7 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(add_info, "%s/.ADD_INFO", neogitDir);
     sprintf(alias, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
     sprintf(repo_on_commit, "%s/.REPO_ON_COMMIT", neogitDir);
+    sprintf(tags, "%s/.TAGS", neogitDir);
 
     mkdir(repository, 0755);
     mkdir(stage, 0755);
@@ -379,6 +384,7 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(add_info, 0755);
     mkdir(alias, 0755);
     mkdir(repo_on_commit, 0755);
+    mkdir(tags, 0755);
     
 }
 void init() {
@@ -705,7 +711,7 @@ void UNDO_FUNC()
     closedir(ADD_INFO);
 
 
-    char last_add[MAX_LENGTH_STRING];
+    char last_add[2 * MAX_LENGTH_STRING];
     sprintf(last_add, "%s/add%d.txt", add_info, num_name);
 
     FILE* LAST_ADD = fopen(last_add, "r");
@@ -1426,6 +1432,187 @@ void LOG_TIME(string inputTime, int valid)
 }
 
 
+int compare(const void *a, const void *b) {
+  struct dirent **da = (struct dirent **)a;
+  struct dirent **db = (struct dirent **)b;
+  return strcmp((*da)->d_name, (*db)->d_name);
+}
+void TAG_FUNC(string tag_name, string message, Uint commit_id, bool overwrite)
+{
+    char tags[MAX_LENGTH_STRING];
+    sprintf(tags, "%s/.neogit/.TAGS", IS_INITED());
+
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
+    char this_commit[MAX_LENGTH_STRING];
+    sprintf(this_commit, "%X", commit_id);
+    if(!find_file(commits, this_commit)) {
+        perror("this commit does not exist!!");
+        return;
+    }
+
+
+    char check[MAX_LENGTH_STRING];
+    sprintf(check, "%s.txt", tag_name);
+    if(find_file(tags,  check) && !overwrite) {
+        printf("%s already exists.\n", tag_name);
+        return;
+    }
+
+    char new_tag[2 * MAX_LENGTH_STRING];
+    sprintf(new_tag, "%s/%s.txt", tags, tag_name);
+    FILE* NEW_TAG = fopen(new_tag, "w");
+
+    time_t current_time;
+    struct tm *time_info;
+    char cur_time[80];
+    current_time = time(NULL);
+    time_info = localtime(&current_time);
+    strftime(cur_time, sizeof(cur_time), "%Y-%m-%d %H:%M:%S", time_info);
+
+    fprintf(NEW_TAG, "commit id : %X\n", commit_id);
+    fprintf(NEW_TAG, "Author : %s   <%s>\n", find_name(), find_email());
+    fprintf(NEW_TAG, "Date : %s\n", cur_time);
+    if(message == NULL) 
+        fprintf(NEW_TAG, "This tag has no message!\n");
+    else
+    fprintf(NEW_TAG, "Message : %s\n", message);
+
+    fclose(NEW_TAG);
+
+}
+void TAG_ANALYZE(char* input[], int arguments)
+{
+    if(arguments < 0) {
+        perror("few arguments!");
+        return;
+    }
+    else if(arguments == 0) {
+        TAG_FUNC(input[0], NULL, find_head(), false);
+    }
+    else if(arguments == 1) {
+        if(strcmp(input[1], "-f")) {
+            perror("invalid inputs!");
+            return;
+        }
+        TAG_FUNC(input[0], NULL, find_head(), true);
+    }
+    else if(arguments == 2) {
+        if(strcmp(input[1], "-m") == 0) {
+            TAG_FUNC(input[0], input[2], find_head(), false);
+        }
+        else if(strcmp(input[1], "-c") == 0) {
+            Uint commit_id;
+            sscanf(input[2], "%X", &commit_id);
+            TAG_FUNC(input[0], NULL, commit_id, false);
+        } else {
+            perror("invalid inputs!");
+            return;
+        }
+    }
+    else if(arguments == 3) {
+        if(strcmp(input[3], "-f")) {
+            perror("invalid inputs!");
+            return;
+        }
+        if(strcmp(input[1], "-m") == 0) {
+            TAG_FUNC(input[0], input[2], find_head(), true);
+        }
+        else if(strcmp(input[1], "-c") == 0) {
+            Uint commit_id;
+            sscanf(input[2], "%X", &commit_id);
+            TAG_FUNC(input[0], NULL, commit_id, true);
+        } else {
+            perror("invalid inputs!");
+            return;
+        }
+    }
+    else if(arguments == 4) {
+        if(strcmp(input[1], "-m") || strcmp(input[3], "-c")) {
+            perror("invalid inputs!");
+            return;
+        }
+        Uint commit_id;
+        sscanf(input[4], "%X", &commit_id);
+        TAG_FUNC(input[0], input[2], commit_id, false);
+    }
+    else if(arguments == 5) {
+        if(strcmp(input[1], "-m") || strcmp(input[3], "-c") || strcmp(input[5], "-f")) {
+            perror("invalid inputs!");
+            return;
+        }
+        Uint commit_id;
+        sscanf(input[4], "%X", &commit_id);
+        TAG_FUNC(input[0], input[2], commit_id, true);
+    } else {
+        perror("to many argumnets!");
+        return;
+    }
+}
+void show_all_tags()
+{
+
+    char tags[MAX_LENGTH_STRING];
+    sprintf(tags, "%s/.neogit/.TAGS", IS_INITED());
+
+    DIR *dir = opendir(tags);
+    if (!dir) {
+        perror("opendir");
+        return;
+    }
+
+    struct dirent **namelist;
+    int n = scandir(tags, &namelist, NULL, compare);
+    if (n == -1) {
+        perror("scandir");
+        return;
+    }
+
+    for (int i = 0; i < n; ++i) {
+        if(strcmp(namelist[i]->d_name, ".") == 0|| strcmp(namelist[i]->d_name, "..") == 0) continue;
+        char temp[100];
+        strcpy(temp,  namelist[i]->d_name);
+        temp[strlen(namelist[i]->d_name) - 4] = '\0';
+        printf("%s\n", temp);
+        free(namelist[i]);
+    }
+    free(namelist);
+    closedir(dir);
+}
+void show_tag_information(string tag_name)
+{
+    char tags[MAX_LENGTH_STRING];
+    sprintf(tags, "%s/.neogit/.TAGS", IS_INITED());
+
+    char tag_text[MAX_LENGTH_STRING];
+    sprintf(tag_text, "%s.txt", tag_name);
+
+    if(!find_file(tags,  tag_text)) {
+        perror("there is no tag with this tag-name!");
+        return;
+    }
+    
+    char tag_address[2 * MAX_LENGTH_STRING];
+    sprintf(tag_address, "%s/%s", tags, tag_text);
+    FILE* TAG = fopen(tag_address, "r");
+    if(TAG == NULL) {
+        perror("failed to open tag file!");
+        return;
+    }
+
+    printf("\ntag : %s\n", tag_name);
+    for(int i = 0; i < 4; i++) {
+        char line[MAX_LENGTH_STRING];
+        fgets(line, MAX_LENGTH_STRING, TAG);
+        printf("%s", line);
+    }
+
+    fclose(TAG);
+    
+
+}
+
+
 Uint find_commit(int n) 
 {
     if(n < 0) {
@@ -1454,7 +1641,6 @@ Uint find_commit(int n)
             Uint prev = 0;
             fgets(line,  MAX_LENGTH_STRING, TREE);
             sscanf(line, "prev_commit->%X commit_id->%X ", &prev, &temp);
-            printf("%X & %X --> %X\n", prev, temp, id);
             if(temp == id) {
                 id = prev;
                 break;
@@ -1480,6 +1666,55 @@ Uint find_head()
 
     return head;
 
+}
+string find_name()
+{
+    string name = make_string(100);
+    char info[MAX_LENGTH_STRING];
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
+    FILE *INFO = fopen(info, "r");
+    
+    char line[MAX_LENGTH_STRING];
+    fgets(line, MAX_LENGTH_STRING, INFO);
+    sscanf(line, "user.name : %[^\n]", name);
+
+    fclose(INFO);
+
+    return name;
+}
+string find_email()
+{
+    string email = make_string(100);
+    char info[MAX_LENGTH_STRING];
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
+    FILE *INFO = fopen(info, "r");
+    
+    char line[MAX_LENGTH_STRING];
+    for (int i = 0; i < 2; i++) {
+        fgets(line, MAX_LENGTH_STRING, INFO);
+    }
+    sscanf(line, "user.email : %[^\n]", email);
+
+    fclose(INFO);
+
+    return email;
+}
+string find_branch()
+{
+    string branch = make_string(100);
+    char info[MAX_LENGTH_STRING];
+    sprintf(info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
+    FILE *INFO = fopen(info, "r");
+    
+    char line[MAX_LENGTH_STRING];
+    for (int i = 0; i < 3; i++) {
+        fgets(line, MAX_LENGTH_STRING, INFO);
+    }
+    sscanf(line, "branch : %[^\n]", branch);
+
+    fclose(INFO);
+
+    return branch;
 }
 
 
@@ -1560,12 +1795,11 @@ int main(int argc, char *argv[])
         base_empty_directories(IS_INITED(), stage);
         base_empty_directories(IS_INITED(),  unstage); 
     } 
-    int crt_arg = 1; //current argument
-    if (strcmp(argv[crt_arg], "init") == 0) {
+    if (strcmp(argv[1], "init") == 0) {
         init();
         return 0;
     }
-    else if (strcmp(argv[crt_arg], "config") == 0) {
+    else if (strcmp(argv[1], "config") == 0) {
         if(strcmp(argv[2], "-global") == 0) {
             if(strncmp(argv[3], "alias.", 6) == 0) {
                 GLOBAL_ALIAS(argv[3], argv[4]); 
@@ -1588,60 +1822,60 @@ int main(int argc, char *argv[])
         printf("please initilize neogit first!\n");
         return 0;
     }
-    if(strcmp(argv[crt_arg], "add") == 0) {
-        crt_arg++;
+    if(strcmp(argv[1], "add") == 0) {
         int num_added = 0;
         char added[20][MAX_LENGTH_STRING];
-        if(strcmp(argv[crt_arg], "-f") == 0) {
-            for (int i = crt_arg + 1; i < argc; i++) {
+        if(strcmp(argv[2], "-f") == 0) {
+            for (int i = 3; i < argc; i++) {
                 ADD_FUNC(argv[i]);
                 strcpy(added[num_added], argv[i]);
                 num_added++;
             }
         }
-        else if(strcmp(argv[crt_arg], "-n") == 0) {
-            crt_arg++;
+        else if(strcmp(argv[2], "-n") == 0) {
             int depth;
-            sscanf(argv[crt_arg], "%d", &depth);
+            sscanf(argv[2], "%d", &depth);
             char cwd[500];
             getcwd(cwd, 500);
             char stage[500];
             sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
             show_in_add(depth, 0, cwd, stage);
         }
-        else if(strcmp(argv[crt_arg], "-redo") == 0) {
-            //fill this part after completing reset part
+        else if(strcmp(argv[2], "-redo") == 0) {
             REDO_FUNC();
         }
         else {
-            ADD_FUNC(argv[crt_arg]);
-            strcpy(added[num_added], argv[crt_arg]);
+            ADD_FUNC(argv[2]);
+            strcpy(added[num_added], argv[2]);
             num_added++;
         }
         ADD_LIST(added, num_added);
     }
-    else if (strcmp(argv[crt_arg], "reset") == 0) {
-        crt_arg++;
-        if(strcmp(argv[crt_arg], "-undo") == 0) {
+    else if (strcmp(argv[1], "reset") == 0) {
+        if(strcmp(argv[2], "-undo") == 0) {
             UNDO_FUNC();
         }
-        else if(strcmp(argv[crt_arg], "-f") == 0) {
-            for (int i = crt_arg + 1; i < argc; i++) {
+        else if(strcmp(argv[2], "-f") == 0) {
+            for (int i = 3; i < argc; i++) {
                 RESET_FUNC(argv[i]);
             }
         } else {
-            RESET_FUNC(argv[crt_arg]);
+            RESET_FUNC(argv[2]);
             char command[200];
             
         }
     }
-    else if(strcmp(argv[crt_arg], "status") == 0) {
+    else if(strcmp(argv[1], "status") == 0) {
         RUN_STATUS();
     }
-    else if(strcmp(argv[crt_arg], "commit") == 0) {
+    else if(strcmp(argv[1], "commit") == 0) {
         if(strcmp(argv[2], "-m") == 0) {
             if(argc > 4) {
                 printf("to many arguments!\n");
+                return 1;
+            }
+            if (strlen(argv[3]) > 72) {
+                perror("this message is too long please change it");
                 return 1;
             }
             COMMIT_FUNC(argv[3]);
@@ -1661,7 +1895,7 @@ int main(int argc, char *argv[])
             COMMIT_FUNC(message);
         }
     }
-    else if(strcmp(argv[crt_arg], "set") == 0) {
+    else if(strcmp(argv[1], "set") == 0) {
         if(argc != 6) {
             perror("not enough arguments!");
             return 1;
@@ -1672,7 +1906,7 @@ int main(int argc, char *argv[])
         }
         SET_FUNC(argv[3], argv[5]);
     }
-    else if(strcmp(argv[crt_arg], "replace") == 0) {
+    else if(strcmp(argv[1], "replace") == 0) {
         if(argc != 6) {
             perror("not enough arguments!\n");
             return 1;
@@ -1691,7 +1925,7 @@ int main(int argc, char *argv[])
         }
         SET_FUNC(argv[3], argv[5]);
     }
-    else if(strcmp(argv[crt_arg], "remove") == 0) {
+    else if(strcmp(argv[1], "remove") == 0) {
         if(argc != 4) {
             perror("not enough arguments!\n");
             return 1;
@@ -1713,7 +1947,7 @@ int main(int argc, char *argv[])
 
         REMOVE_SHORTCUT(argv[3]);
     }
-    else if(strcmp(argv[crt_arg], "log") == 0) {
+    else if(strcmp(argv[1], "log") == 0) {
         if(argc == 2) {
             LOG_FUNC((int)1e9);
         }
@@ -1762,7 +1996,7 @@ int main(int argc, char *argv[])
         }
         else {perror("invalid inputs!"); return 1;}
     }
-    else if(strcmp(argv[crt_arg], "branch") == 0) {
+    else if(strcmp(argv[1], "branch") == 0) {
         if(argc > 3) {
             perror("not enough arguments!\n");
             return 1;
@@ -1774,7 +2008,7 @@ int main(int argc, char *argv[])
             make_branch(argv[2]);
         }
     }
-    else if(strcmp(argv[crt_arg], "checkout") == 0) {
+    else if(strcmp(argv[1], "checkout") == 0) {
         if (argc != 3) {
             perror("not enough arguments!\n");
             return 1;
@@ -1798,9 +2032,29 @@ int main(int argc, char *argv[])
             CHECKOUT(argv[2]);
         }
     }
+    else if(strcmp(argv[1], "tag") == 0) {
+        if(argc == 2) {
+            show_all_tags();
+        }
+        else if(strcmp(argv[2], "show") == 0) {
+            if(argc > 4) {
+                perror("invalid inputs!");
+                return 1;
+            }
+            show_tag_information(argv[3]);
+        }
+        else if(strcmp(argv[2], "-a") == 0) {
+            TAG_ANALYZE(&argv[3], argc - 4);
+        }
+        else {
+            perror("invalid inputs!");
+            return 1;
+        }
+    }
     else {
         RUN_ALIAS(argv[1]);
     }
 
     return 0;
 }
+
