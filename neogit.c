@@ -11,6 +11,7 @@
 #include <fnmatch.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <ctype.h>
 
 typedef char* string;
 #define make_string(n) (string)calloc(n, sizeof(char))
@@ -19,7 +20,6 @@ typedef unsigned int Uint;
 #define MAX_LENGTH_STRING 500
 #define GLOBAL true
 #define LOCAL false
-
 
 void make_empty_directories(string  src, string dest, string name); 
 void base_empty_directories(string source, string destination);
@@ -989,11 +989,15 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
         sprintf(destination, "%s/%s", new_commit, stg->d_name);
         sprintf(repo_dest, "%s/%s", repo_address, stg->d_name);
         if(stg->d_type == DT_DIR) {
-            //fill this part!!
+            COPY_DIR(stage_address, repo_address, stg->d_name);
+            char command[MAX_LENGTH_STRING];
+            sprintf(command, "rm -rf %s/%s", stage_address, stg->d_name);
+            system(command);
         } else {
             COPY_FILE(stage_address, repo_address, stg->d_name);
+            remove(source);
         }
-        rename(source , destination);
+        
    
     }
     char local_info[MAX_LENGTH_STRING];
@@ -1613,6 +1617,123 @@ void show_tag_information(string tag_name)
 }
 
 
+int isWordBoundary(char ch) {
+    return ch == ' '||  ch == '\t' || ch == '\n' || ch == '\0' || ispunct((unsigned char)ch);
+}
+
+// This helper function checks if the found word is standalone
+int isStandaloneWord(const char *word, const char *found, const char *line) {
+    // Check for word boundary at the start of the word
+    if (found != line && !isWordBoundary(*(found - 1))) {
+        return 0;
+    }
+    // Check for word boundary at the end of the word
+    if (!isWordBoundary(*(found + strlen(word)))) {
+        return 0;
+    }
+    return 1; // The word is standalone
+}
+
+// Function to find the word in a line and print the line with the word highlighted
+void printHighlightedWordInLine(const char *word, const char *line, bool condition, int number) {
+    const char *found = strstr(line, word);
+    while (found) {
+        // Check if the found word is a standalone word
+        if (isStandaloneWord(word, found, line)) {
+            if(condition) printf("line number : \033[1;34m%d\033[0m ---> ", number);
+            // Start of the line before the word
+            const char *start = line;
+            // Print each segment of line with the word occurrences highlighted
+            do {
+                printf("%.*s\033[4;35m%s\033[0m", (int)(found - start), start, word);
+                // Update start position
+                start = found + strlen(word);
+                found = strstr(start, word); // Look for the next occurrence
+            } while (found && isStandaloneWord(word, found, line));
+            // Print the remainder of the line
+            printf("%s\n", start);
+            return; // Word found and line is printed, so return from function
+        }
+        // Move to the next character to keep looking for the word
+        found = strstr(found + 1, word);
+    }
+    // If the word is not found, do not print anything.
+}
+
+
+void GREP(string file, string word, Uint commit_id, bool number)
+{
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
+    char check[MAX_LENGTH_STRING];
+    sprintf(check, "%X", commit_id);
+    if(!find_file(commits, check)) {
+        perror("\033[1;31mthis commit id does not exist!\033[0m");
+        return;
+    }
+    char cwd[MAX_LENGTH_STRING];
+    getcwd(cwd, MAX_LENGTH_STRING);
+    char path_in_repo[MAX_LENGTH_STRING];
+    sprintf(path_in_repo, "%s/.neogit/.REPO_ON_COMMIT/%X%s/%s", IS_INITED(), commit_id, find_file_path(cwd, IS_INITED()), file);
+    
+    FILE* FILE_ON_COMMIT = fopen(path_in_repo, "r");
+    if(FILE_ON_COMMIT == NULL) {
+        perror("file does not exist in the current repository!");
+        return;
+    }
+    char line[MAX_LENGTH_STRING];
+    for (int i = 1; fgets(line, MAX_LENGTH_STRING, FILE_ON_COMMIT); i++) {
+        
+            //if (number) printf("line number : \033[1;34m%d\033[0m ---> ", i);
+            printHighlightedWordInLine(word, line, number, i);
+    
+    }
+    fclose(FILE_ON_COMMIT);
+
+} 
+void GREP_ANALYZE(char* input[], int arguments)
+{
+    if(arguments < 4) {
+        perror("few inputs\nplease enter at least one file and a word.");
+        return;
+    }
+    if(strcmp(input[0], "-f") ||  strcmp(input[2], "-p")) {
+        perror("invalid inputs!");
+        return;
+    }
+    if(arguments == 4) {
+        GREP(input[1], input[3], find_head(), false);
+    }
+    else if(arguments == 5) {
+        if(strcmp(input[4], "-n")) {
+            perror("invalid inputs!");
+            return;
+        }
+        GREP(input[1], input[3], find_head(), true);
+    }
+    else if(arguments == 6) {
+        if(strcmp(input[4], "-c")) {
+            perror("invalid inputs!");
+            return;
+        }
+        Uint commit_id;
+        sscanf(input[5], "%X",  &commit_id);
+        GREP(input[1], input[3], commit_id, false);
+    }
+    else if(arguments == 7) {
+        if(strcmp(input[4], "-c") || strcmp(input[6], "-n")) {
+            perror("invalid inputs!");
+            return;
+        }
+        Uint commit_id;
+        sscanf(input[5], "%X",  &commit_id);
+        GREP(input[1], input[3], commit_id, true);
+    } else {
+        perror("too many inputs!");
+        return;
+    }
+}
+
 Uint find_commit(int n) 
 {
     if(n < 0) {
@@ -1781,6 +1902,9 @@ void base_empty_directories(string source, string destination)
 
 int main(int argc, char *argv[])
 {  
+    
+    printf("\033[7;33mWELCOME TO NEOGIT!!\033[0m\n");
+    if(argc == 1) return 1;
     if(IS_INITED()) {
         char repository[MAX_LENGTH_STRING];
         char stage[MAX_LENGTH_STRING];
@@ -2050,6 +2174,10 @@ int main(int argc, char *argv[])
             perror("invalid inputs!");
             return 1;
         }
+    }
+    else if(strcmp(argv[1], "grep") == 0) {
+        GREP_ANALYZE(&argv[2], argc - 2);
+
     }
     else {
         RUN_ALIAS(argv[1]);
