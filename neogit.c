@@ -13,17 +13,49 @@
 #include <errno.h>
 #include <ctype.h>
 
+
+//define for colors 
+#define ANSI_RESET   "\x1b[0m"
+#define ANSI_ACK   "\x1b[30m"
+#define ANSI_RED     "\x1b[31m"
+#define ANSI_GREEN   "\x1b[32m"
+#define ANSI_YELLOW  "\x1b[33m"
+#define ANSI_BLUE    "\x1b[34m"
+#define ANSI_MAGENTA "\x1b[35m"
+#define ANSI_CYAN    "\x1b[36m"
+#define ANSI_WHITE   "\x1b[37m"
+
+#define ANSI_BOLD    "\x1b[1m"
+#define ANSI_FAINT   "\x1b[2m"
+#define ANSI_ITALIC  "\x1b[3m"
+#define ANSI_UNDERLINE "\x1b[4m"
+#define ANSI_BLINK   "\x1b[5m"
+#define ANSI_INVERT  "\x1b[7m"
+
+#define ANSI_BACK_BLACK   "\x1b[40m"
+#define ANSI_BACK_RED     "\x1b[41m"
+#define ANSI_BACK_GREEN   "\x1b[42m"
+#define ANSI_BACK_YELLOW  "\x1b[43m"
+#define ANSI_BACK_BLUE    "\x1b[44m"
+#define ANSI_BACK_MAGENTA "\x1b[45m"
+#define ANSI_BACK_CYAN    "\x1b[46m"
+#define ANSI_BACK_WHITE   "\x1b[47m"
+
+
 typedef char* string;
 #define make_string(n) (string)calloc(n, sizeof(char))
 #define remove_string(str) free(str)
 typedef unsigned int Uint;
 #define MAX_LENGTH_STRING 500
+#define MAX_LINE_LENGTH 1024
 #define GLOBAL true
 #define LOCAL false
+
 
 void make_empty_directories(string  src, string dest, string name); 
 void base_empty_directories(string source, string destination);
 Uint find_head();
+Uint find_commit(int);
 string find_name();
 string find_email();
 string find_branch();
@@ -431,7 +463,6 @@ void init() {
     sprintf(is_okay_checkout, "%s/IS_OKAY_CHECKOUT.txt", neoGitDir);
     FILE* IS_OKAY_CHECKOUT = fopen(is_okay_checkout, "w");
     fprintf(IS_OKAY_CHECKOUT, "YES");
-    printf("khare besaz khob\n");
     fclose(GLOBAL_INFO);
     fclose(LOCAL_INFO);
     fclose(IS_OKAY_COMMIT);
@@ -441,48 +472,63 @@ void init() {
     make_branch("master");
 
 
-    printf("Initialized empty Git repository in %s\n", neoGitDir);
+    printf(ANSI_BACK_BLACK"Initialized empty Git repository in %s"ANSI_RESET"\n", neoGitDir);
 }
 
 
 
 void COPY_FILE(char src[], char dest[], char name[])
 {
-    char destinationAddress[MAX_LENGTH_STRING];
-    sprintf(destinationAddress, "%s/%s", dest, name);
+ 
 
-    FILE *source, *destination;
+    char src_file[MAX_LENGTH_STRING];
+    sprintf(src_file, "%s/%s", src, name);
 
+    char dst_file[MAX_LENGTH_STRING];
+    sprintf(dst_file, "%s/%s", dest, name);
 
-    char buffer[1024];
-    size_t bytes_read;
-
-
-    char sourceAddress[MAX_LENGTH_STRING];
-    sprintf(sourceAddress, "%s/%s", src, name);
-
-
-    source = fopen(sourceAddress, "rb");
-    if (source == NULL) {
-        printf("Error: Could not open source file\n");
-        exit(1);
+    // Open the source file
+    int src_fd = open(src_file, O_RDONLY);
+    if (src_fd == -1) {
+        perror("Error opening source file");
+        return;
     }
 
-    destination = fopen(destinationAddress, "wb");
-    if (destination == NULL) {
-        printf("Error: Could not open destination file\n");
-        fclose(source);
-        exit(1);
+    // Get the size of the source file
+    struct stat src_stat;
+    if (fstat(src_fd, &src_stat) == -1) {
+        perror("Error getting source file size");
+        close(src_fd);
+        return;
     }
 
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), source)) > 0) {
-        fwrite(buffer, 1, bytes_read, destination);
+    // Open the destination file
+    int dst_fd = open(dst_file, O_WRONLY | O_CREAT, src_stat.st_mode);
+    if (dst_fd == -1) {
+        perror("Error opening destination file");
+        close(src_fd);
+        return;
     }
 
-    fclose(source);
-    fclose(destination);
+    // Copy the source file to the destination file
+    off_t offset = 0;
+    ssize_t bytes_copied;
+    while ((bytes_copied = sendfile(dst_fd, src_fd, &offset, src_stat.st_size)) > 0) {
+        // Continue copying until all bytes are copied
+    }
 
-    printf("File copied successfully\n");
+    // Check for errors during the copy operation
+    if (bytes_copied == -1) {
+        perror("Error copying file");
+        close(src_fd);
+        close(dst_fd);
+        return;
+    }
+
+    // Close the file descriptors
+    close(src_fd);
+    close(dst_fd);
+
 }
 void COPY_DIR(string src, string dest, char name[]) 
 {
@@ -582,11 +628,7 @@ void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 }
 void show_in_add(int depth, int cur, string source, string destination)
 {
-    if (cur == 0) printf("-----------------------\n");
-    if(depth == cur) {
-        printf("-----------------------\n");
-        return;
-    }
+    
     DIR *dir = opendir(source);
     if (dir == NULL) {
         perror("Unable to open the directory");
@@ -608,18 +650,14 @@ void show_in_add(int depth, int cur, string source, string destination)
         snprintf(destination_path, sizeof(destination_path), "%s/%s", destination, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-             if(find_file(destination, entry->d_name) == 1)
-                printf("file : %s -- status : STAGED\n", entry->d_name);
-            else
-                printf("file : %s -- status : UNSTAGED\n", entry->d_name);
-
+            printf(ANSI_BACK_BLACK"parent -> %s"ANSI_RESET"\n", entry->d_name);             
             show_in_add(depth , cur + 1, source_path, destination_path);
             
         } else {
             if(find_file(destination, entry->d_name) == 1)
-                printf("file : %s -- status : STAGED\n", entry->d_name);
+                printf(ANSI_CYAN"file : %s -- status : STAGED"ANSI_RESET"\n", entry->d_name);
             else
-                printf("file : %s -- status : UNSTAGED\n", entry->d_name);
+                printf(ANSI_YELLOW"file : %s -- status : UNSTAGED"ANSI_RESET"\n", entry->d_name);
             
         }
     }
@@ -779,7 +817,7 @@ void STATUS_FUNC_3(string staging, string unstage, string last_repo)
             STATUS_FUNC_3(new_stage, new_unstage, new_repo);
         } else {
             if(!find_file(staging, entry->d_name) && !find_file(unstage, entry->d_name)) {
-                printf("file name : %s --- status : -D\n", entry->d_name);
+                printf(ANSI_RED"file name : %s --- status : -D"ANSI_RESET"\n", entry->d_name);
             }
         }
     }
@@ -809,13 +847,13 @@ void STATUS_FUNC_2(string unstage, string last_repo)
             sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
 
             if(strcmp(attribute(file_in_repo), attribute(file_in_unstage))) {
-                printf("file name : %s --- status : -T\n", entry->d_name);
+                printf(ANSI_BACK_BLUE"file name : %s --- status : -T"ANSI_RESET"\n", entry->d_name);
             }
             else if(compare_files(file_in_repo, file_in_unstage) == false) {
-                printf("file name : %s --- status : -M\n", entry->d_name);
+                printf(ANSI_YELLOW"file name : %s --- status : -M"ANSI_RESET"\n", entry->d_name);
             } 
         } else {
-            printf("file name : %s --- status : -A\n", entry->d_name);
+            printf(ANSI_GREEN"file name : %s --- status : -A"ANSI_RESET"\n", entry->d_name);
         }
     }
    }
@@ -844,13 +882,13 @@ void STATUS_FUNC_1(string staging, string last_repo)
             sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
 
             if(strcmp(attribute(file_in_repo), attribute(file_in_stage))) {
-                printf("file name : %s --- status : +T\n", entry->d_name);
+                printf(ANSI_BLUE"file name : %s --- status : +T"ANSI_RESET"\n", entry->d_name);
             }
             else if(compare_files(file_in_repo, file_in_stage) == false) {
-                printf("file name : %s --- status : +M\n", entry->d_name);
+                printf(ANSI_YELLOW"file name : %s --- status : +M"ANSI_RESET"\n", entry->d_name);
             } 
         } else {
-            printf("file name : %s --- status : +A\n", entry->d_name);
+            printf(ANSI_GREEN"file name : %s --- status : +A"ANSI_RESET"\n", entry->d_name);
         }
     }
 
@@ -1124,7 +1162,7 @@ void PRITNT_BRANCHES()
     while ((entry = readdir(BRANCHES)) != NULL){
         if (strcmp(".", entry->d_name) == 0 || strcmp("..", entry->d_name) == 0) continue;
 
-        printf("branch name : %s\n", entry->d_name);
+        printf("branch name : "ANSI_BACK_MAGENTA"%s"ANSI_RESET"\n", entry->d_name);
     }
 }
 void COPY_COMMIT(string source , string destination, string name)
@@ -1640,12 +1678,12 @@ void printHighlightedWordInLine(const char *word, const char *line, bool conditi
     while (found) {
         // Check if the found word is a standalone word
         if (isStandaloneWord(word, found, line)) {
-            if(condition) printf("line number : \033[1;34m%d\033[0m ---> ", number);
+            if(condition) printf("line number : "ANSI_BOLD ANSI_CYAN"%d"ANSI_RESET" ---> ", number);
             // Start of the line before the word
             const char *start = line;
             // Print each segment of line with the word occurrences highlighted
             do {
-                printf("%.*s\033[4;35m%s\033[0m", (int)(found - start), start, word);
+                printf("%.*s"ANSI_BOLD ANSI_YELLOW"%s"ANSI_RESET"", (int)(found - start), start, word);
                 // Update start position
                 start = found + strlen(word);
                 found = strstr(start, word); // Look for the next occurrence
@@ -1684,7 +1722,6 @@ void GREP(string file, string word, Uint commit_id, bool number)
     char line[MAX_LENGTH_STRING];
     for (int i = 1; fgets(line, MAX_LENGTH_STRING, FILE_ON_COMMIT); i++) {
         
-            //if (number) printf("line number : \033[1;34m%d\033[0m ---> ", i);
             printHighlightedWordInLine(word, line, number, i);
     
     }
@@ -1733,6 +1770,315 @@ void GREP_ANALYZE(char* input[], int arguments)
         return;
     }
 }
+
+
+void REVERT(string message, Uint commit_id, bool commit)
+{
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
+
+    char check[MAX_LENGTH_STRING];
+    sprintf(check, "%X",  commit_id);
+    if(!find_file(commits,  check)) {
+        perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
+        return;
+    }
+
+    char is_okay_checkout[MAX_LENGTH_STRING];
+    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
+    FILE *file = fopen(is_okay_checkout, "w");
+    fprintf(file, "YES");
+    fclose(file);
+
+    COMMIT_CHECKOUT(commit_id);
+
+    char is_okay_commit[MAX_LENGTH_STRING];
+    sprintf(is_okay_commit, "%s/.neogit/IS_OKAY_COMMIT.txt", IS_INITED());
+    FILE *fp = fopen(is_okay_commit, "w");
+    fprintf(fp, "YES");
+    fclose(fp);
+
+    char commit_message[MAX_LENGTH_STRING];
+    if(message == NULL) {
+        char commit_info[MAX_LENGTH_STRING];
+        sprintf(commit_info, "%s/.neogit/.COMMIT_INFO", IS_INITED());
+        DIR* INFO = opendir(commit_info);
+        struct dirent* com;
+        while((com = readdir(INFO)) != NULL) {
+            if (strcmp(com->d_name, ".") == 0 || strcmp(com->d_name, "..") == 0) continue;
+            char temp[2 * MAX_LENGTH_STRING];
+            sprintf(temp, "%s/%s", commit_info,  com->d_name);
+            FILE* TEMP = fopen(temp, "r");
+
+            char line[MAX_LENGTH_STRING];
+            char temp_message[MAX_LENGTH_STRING];
+            Uint temp_id = 0;
+
+            for(int i = 0; fgets(line,  MAX_LENGTH_STRING, TEMP) ;i++) {
+                if(i == 1) sscanf(line, "Commit Message : %[^\n]", temp_message);
+                if(i == 5) sscanf(line, "COMMIT ID(HASH) : %X", &temp_id);
+            }
+            fclose(TEMP);
+            if(temp_id == commit_id) {
+                strcpy(commit_message, temp_message);
+                break;
+            }
+        }
+    }
+    if(commit) {
+        char source[MAX_LENGTH_STRING];
+        sprintf(source, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), commit_id);
+        DIR* FOLDER = opendir(source);
+        struct dirent* entry;
+        
+        char stage[MAX_LENGTH_STRING];
+        sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+        char temp_stage[MAX_LENGTH_STRING];
+        sprintf(temp_stage, "%s/.neogit/.temp_stage", IS_INITED());
+        int a = rename(stage, temp_stage);
+        if(a != 0) perror("ERROR: Failed to create temporary staging area");
+        mkdir(stage, 0755);
+        while((entry = readdir(FOLDER)) != NULL) {
+            if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) 
+                continue;
+            if(entry->d_type == DT_DIR) {
+                COPY_DIR(source, stage, entry->d_name);
+            } else {
+                COPY_FILE(source, stage, entry->d_name); 
+            }
+        }
+        closedir(FOLDER);
+        if(message == NULL) {
+            COMMIT_FUNC(commit_message);
+            
+        } else {mkdir(stage, 0755);
+            COMMIT_FUNC(message);
+        }
+        remove(stage);
+        rename(temp_stage, stage);
+    }
+}
+void REVERT_ANALYZE(char* input[], int arguments) 
+{
+    if(arguments == 0) {
+        REVERT(NULL, find_head(), true);
+    }
+    else if(arguments == 1) {
+        if(strcmp(input[0], "-n") == 0) {
+            REVERT(NULL, find_head(), false);
+            
+        }
+        else if(strncmp(input[0], "HEAD-",  5) == 0) {
+            int num = 0;
+            sscanf(input[0],  "HEAD-%d", &num);
+            REVERT(NULL, find_commit(num), true);
+        }
+        else {
+            Uint commit_id;
+            sscanf(input[0], "%X", &commit_id);
+            REVERT(NULL, commit_id,  true);
+        }
+    }
+    else if(arguments == 2) {
+        if(strcmp(input[0], "-m") == 0) {
+            REVERT(input[1],  find_head(), true);
+        }
+        else if(strcmp(input[0], "-n") == 0) {
+            Uint commit_id;
+            sscanf(input[1], "%X", &commit_id);
+            REVERT(NULL, commit_id,  false);
+        } else {
+            perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
+            return;
+        }
+    }
+    else if(arguments == 3) {
+        if(strcmp(input[0], "-m")) {
+            perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
+            return;
+        }
+        Uint commit_id;
+        sscanf(input[2], "%X", &commit_id);
+        REVERT(input[1], commit_id,  true);
+    } else {
+        perror(ANSI_BACK_RED"Too many argumetns!"ANSI_RESET);
+            return;
+    }
+}
+
+bool isWhiteSpace(char line[]) {
+    for (int i = 0; i < strlen(line); i++) {
+        if(isWordBoundary(line[i])) continue;
+
+        return true;
+    }
+    return false;
+}
+
+void compare_and_print_lines(char line1[], char line2[], int num1, int num2, string file1, string file2)
+{
+    
+    if(strcmp(line1, line2) == 0) return;
+    printf(ANSI_BLUE"%s---%d"ANSI_RESET"\n", file1, num1);
+    printf("%s\n", line1);
+    printf(ANSI_RED"%s---%d"ANSI_RESET"\n", file2, num2);
+    printf("%s\n", line2);
+
+
+} 
+void DIFF_FILE(string file1_address, string file2_address, int beginLine1, int endLine1, int beginLine2, int endLine2)
+{
+    FILE* first = fopen(file1_address, "r");
+    FILE* second = fopen(file2_address, "r");
+    char file1_name[50];
+    char file2_name[50];
+    for(int i = strlen(file1_address) - 1; i >= 0; i--) {
+        if(i == 0) {
+            strcpy(file1_name,  file1_address);
+        }
+        if(file1_address[i - 1] == '/') {
+            strcpy(file1_name, &file1_address[i]);
+            break;
+        }
+        
+    }
+    for(int i = strlen(file2_address) - 1; i >= 0; i--) {
+        if(i == 0) {
+            strcpy(file2_name,  file2_address);
+        }
+        if(file2_address[i - 1] == '/') {
+            strcpy(file2_name, &file2_address[i]);
+            break;
+        }
+    }
+    char line1[MAX_LENGTH_STRING];
+    char line2[MAX_LENGTH_STRING];
+    for(int i = 0; i < beginLine1 - 1; i++) {
+        fgets(line1, MAX_LENGTH_STRING, first);
+    }
+    for(int i = 0; i < beginLine2 - 1; i++) {
+        fgets(line2, MAX_LENGTH_STRING, second);
+    }
+    int lineNum1 = beginLine1 - 1;
+    int lineNum2 = beginLine2 - 1;
+    while(true) {
+        string check1;
+        string check2;
+        check1 = fgets(line1, MAX_LENGTH_STRING, first);
+        lineNum1++;
+        check2 = fgets(line2, MAX_LENGTH_STRING, second);
+        lineNum2++;
+        while(!isWhiteSpace(line1)) {
+            lineNum1++;
+           check1 = fgets(line1, MAX_LENGTH_STRING, first);
+           if(check1 == NULL) break;
+        }
+        while(!isWhiteSpace(line2)) {
+            lineNum2++;
+           check2 = fgets(line2, MAX_LENGTH_STRING, second);
+           if(check2 == NULL) break;
+        }
+        if(check1 == NULL || check2 == NULL) break;
+        if(lineNum1 > endLine1 || lineNum2 > endLine2) break;
+        compare_and_print_lines(line1, line2, lineNum1, lineNum2, file1_name, file2_name);
+
+    }
+    
+}
+
+
+void DIFF_FILE_ANALYZE(char* input[], int arguments)
+{
+    if(arguments < 2) {
+        perror(ANSI_BACK_RED"few arguments please enter two file!"ANSI_RESET);
+        return;
+    }
+    else if(arguments == 2) {
+        DIFF_FILE(input[0], input[1], 0, (int)1e9, 0, (int)1e9);
+    }
+    else if(arguments == 4) {
+        if(strcmp(input[2], "-line1") == 0) {
+            int beginLine1 = 0;
+            int endLine1 = 0;
+            sscanf(input[3], "%d-%d", &beginLine1, &endLine1);
+            DIFF_FILE(input[0], input[1], beginLine1, endLine1, 0, (int)1e9);
+        }
+        else if(strcmp(input[2], "-line2") == 0) {
+            int beginLine2 = 0;
+            int endLine2 = 0;
+            sscanf(input[3], "%d-%d", &beginLine2, &endLine2);
+            DIFF_FILE(input[0], input[1], 0, (int)1e9, beginLine2, endLine2);
+        } else {
+            perror(ANSI_RED"invalid inputs!"ANSI_RESET);
+            return;
+        }
+    }
+    else if(arguments == 6) {
+        if(strcmp(input[2], "-line1") || strcmp(input[4], "-line2")) {
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+            return;   
+        }
+        int beginLine1 = 0;
+        int beginLine2 = 0;
+        int endLine1 = 0;
+        int endLine2 = 0;
+        sscanf(input[3], "%d-%d", &beginLine1, &endLine1);
+        sscanf(input[5], "%d-%d", &beginLine2, &endLine2);
+        DIFF_FILE(input[0], input[1], beginLine1, endLine1, beginLine2, endLine2);
+    } else {
+        perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+    }
+}
+void COMPARE_COMMITS(string repo1, string repo2, string id1, string id2)
+{
+    DIR* REPO_1 = opendir(repo1);
+    struct dirent *entry; 
+    while((entry = readdir(REPO_1)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(find_file(repo2, entry->d_name)) {
+            char new_repo1[MAX_LENGTH_STRING];
+            char new_repo2[MAX_LENGTH_STRING];
+            sprintf(new_repo1, "%s/%s", repo1, entry->d_name);
+            sprintf(new_repo2, "%s/%s", repo2, entry->d_name);
+            if(entry->d_type == DT_DIR) {
+                printf(ANSI_BACK_MAGENTA"parent : %s"ANSI_RESET"\n", entry->d_name);
+                COMPARE_COMMITS(new_repo1, new_repo2, id1, id2);
+            } else {
+                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
+            }
+        }
+        else {
+            if(entry->d_type == DT_DIR) {
+                printf(ANSI_BLUE"%s"ANSI_RESET" directroy exist in commit "ANSI_GREEN"%s"ANSI_RESET" but does not exist in commit "ANSI_CYAN"%s"ANSI_RESET"\n", entry->d_name, id1, id2);
+                continue;
+            } else {
+                printf(ANSI_BLUE"%s"ANSI_RESET" file exist in commit "ANSI_GREEN"%s"ANSI_RESET" but does not exist in commit "ANSI_CYAN"%s"ANSI_RESET"\n", entry->d_name, id1, id2);
+            }
+        }
+        
+    }
+}
+void DIFF_COMMIT(string first, string second)
+{
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
+    if (!find_file(commits, first) || !find_file(commits, second)) {
+        perror(ANSI_BACK_RED"this commit id's are not valid!"ANSI_RESET);
+        return;
+    }
+    char repo_on_commit_1[MAX_LENGTH_STRING];
+    char repo_on_commit_2[MAX_LENGTH_STRING];
+    sprintf(repo_on_commit_1, "%s/.neogit/.REPO_ON_COMMIT/%s", IS_INITED(), first);
+    sprintf(repo_on_commit_2, "%s/.neogit/.REPO_ON_COMMIT/%s", IS_INITED(),  second);
+
+    COMPARE_COMMITS(repo_on_commit_1, repo_on_commit_2, first, second);
+    COMPARE_COMMITS(repo_on_commit_2, repo_on_commit_1,  second, first);
+    
+
+}
+
+
 
 Uint find_commit(int n) 
 {
@@ -1900,12 +2246,13 @@ void base_empty_directories(string source, string destination)
 
 
 
+
+
 int main(int argc, char *argv[])
 {  
-    
-    printf("\033[7;33mWELCOME TO NEOGIT!!\033[0m\n");
     if(argc == 1) return 1;
     if(IS_INITED()) {
+        printf(ANSI_BACK_MAGENTA "%s" ANSI_RESET "\n", find_branch());
         char repository[MAX_LENGTH_STRING];
         char stage[MAX_LENGTH_STRING];
         char unstage[MAX_LENGTH_STRING];
@@ -2179,10 +2526,27 @@ int main(int argc, char *argv[])
         GREP_ANALYZE(&argv[2], argc - 2);
 
     }
+    else if(strcmp(argv[1], "revert") == 0) {
+        REVERT_ANALYZE(&argv[2], argc - 2);
+    }
+    else if(strcmp(argv[1], "diff") == 0) {
+        if(strcmp(argv[2], "-f") == 0) {
+            DIFF_FILE_ANALYZE(&argv[3], argc - 3);
+        }
+        else if(strcmp(argv[2], "-c") == 0) {
+            if(argc != 5) {
+                perror(ANSI_BACK_RED"Invalid Inputs!"ANSI_RESET);
+                return 1;
+            }
+            DIFF_COMMIT(argv[3], argv[4]);
+        } else {
+            perror(ANSI_BACK_RED"Invalid Inputs!"ANSI_RESET);
+            return 1;
+        }
+    }
     else {
         RUN_ALIAS(argv[1]);
     }
 
     return 0;
 }
-
