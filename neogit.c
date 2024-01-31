@@ -60,6 +60,49 @@ string find_name();
 string find_email();
 string find_branch();
 
+void remove_directory(const char* path) {
+    DIR *d = opendir(path);
+    size_t path_len = strlen(path);
+    int r;
+
+    struct dirent *ent;
+    struct stat statbuf;
+
+    if (!d) {
+        perror("opendir");
+        return;
+    }
+
+    while ((ent = readdir(d)) != NULL) {
+        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) {
+            continue;
+        }
+
+        char *new_path = (char*)malloc(path_len + strlen(ent->d_name) + 2);
+        sprintf(new_path, "%s/%s", path, ent->d_name);
+
+        if (!stat(new_path, &statbuf)) {
+            if (S_ISDIR(statbuf.st_mode)) {
+                remove_directory(new_path);
+            } else {
+                r = remove(new_path);
+                if (r != 0) {
+                    perror("remove");
+                }
+            }
+        }
+
+        free(new_path);
+    }
+
+    closedir(d);
+
+    r = rmdir(path);
+    if (r != 0) {
+        perror("rmdir");
+    }
+}
+
 string find_file_path(string bigger, string smaller) {
     return &bigger[strlen(smaller)];
 }
@@ -328,7 +371,7 @@ void RUN_ALIAS(char command[])
 
 
 
-void make_branch(char branchName[])
+void make_branch(char branchName[], Uint head)
 {
     char branchAddress[100];
     sprintf(branchAddress, "%s/.neogit/.BRANCHES/%s", IS_INITED(), branchName);
@@ -340,21 +383,11 @@ void make_branch(char branchName[])
     FILE* HEAD_COMMIT = fopen(head_commit, "w");
     char local_info[MAX_LENGTH_STRING];
     sprintf(local_info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
-    FILE* INFO = fopen(local_info, "r");
-    if(INFO == NULL) {
-        perror("unable to open file\n");
-        exit(1);
-    }
-    char temp[MAX_LENGTH_STRING];
-    for (int i = 0; i < 4; i++) {
-        fgets(temp, MAX_LENGTH_STRING, INFO);
-    }
-    Uint head;
+
     Uint prev = 0;
-    sscanf(temp, " commit_id : %X\n", &head);
+  
     fprintf(HEAD_COMMIT, "HEAD COMMIT ID : %X", head);
     fclose(HEAD_COMMIT);
-    fclose(INFO);
     mkdir(commits, 0755);
     char first_commit[MAX_LENGTH_STRING];
     sprintf(first_commit, "%s/%X.txt", commits, head);
@@ -380,7 +413,7 @@ void make_branch(char branchName[])
 }
 
 
-void Open_dirctories_for_init(char neogitDir[]) 
+void Open_dirctories_for_init(char neogitDir[])  
 {
     char repository[MAX_LENGTH_STRING];
     char stage[MAX_LENGTH_STRING];
@@ -393,6 +426,7 @@ void Open_dirctories_for_init(char neogitDir[])
     char alias[MAX_LENGTH_STRING];
     char repo_on_commit[MAX_LENGTH_STRING];
     char tags[MAX_LENGTH_STRING];
+    char stashs[MAX_LENGTH_STRING];
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
@@ -405,6 +439,7 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(alias, "%s/LOCAL_ALIAS/%s", CONFIG_ADDRESS(), name_project());
     sprintf(repo_on_commit, "%s/.REPO_ON_COMMIT", neogitDir);
     sprintf(tags, "%s/.TAGS", neogitDir);
+    sprintf(stashs, "%s/.STASHS", neogitDir);
 
     mkdir(repository, 0755);
     mkdir(stage, 0755);
@@ -417,6 +452,7 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(alias, 0755);
     mkdir(repo_on_commit, 0755);
     mkdir(tags, 0755);
+    mkdir(stashs, 0755);
     
 }
 void init() {
@@ -469,7 +505,7 @@ void init() {
     fclose(IS_OKAY_CHECKOUT);
 
 
-    make_branch("master");
+    make_branch("master", 0);
 
 
     printf(ANSI_BACK_BLACK"Initialized empty Git repository in %s"ANSI_RESET"\n", neoGitDir);
@@ -904,7 +940,7 @@ void RUN_STATUS()
     sprintf(last_repo, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), find_head());
     sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
     sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
-    //printf("%s\n%s\n%s\n", last_repo, stage, unstage);
+
     STATUS_FUNC_1(stage, last_repo);
     STATUS_FUNC_2(unstage, last_repo);
     STATUS_FUNC_3(stage, unstage, last_repo);
@@ -1851,10 +1887,10 @@ void REVERT(string message, Uint commit_id, bool commit)
         if(message == NULL) {
             COMMIT_FUNC(commit_message);
             
-        } else {mkdir(stage, 0755);
+        } else {
             COMMIT_FUNC(message);
         }
-        remove(stage);
+        remove_directory(stage);
         rename(temp_stage, stage);
     }
 }
@@ -1914,14 +1950,68 @@ bool isWhiteSpace(char line[]) {
     }
     return false;
 }
+bool num_diff(char line1[], char line2[],  int line_to_print)
+{
+    char line1_copy[MAX_LENGTH_STRING];
+    char line2_copy[MAX_LENGTH_STRING];
+    strcpy(line1_copy, line1);
+    strcpy(line2_copy, line2);
+    int differences = 0;
+    char diff_in_1[100];
+    char diff_in_2[100];
+   
+    char* words1[100]; 
+    int wordCount1 = 0;
+
+    char* token = strtok(line1_copy, " \n"); 
+
+    while (token) {
+        words1[wordCount1] = token;
+        wordCount1++;
+        token = strtok(NULL, " \n");
+    }
+    char* words2[100]; 
+    int wordCount2 = 0;
+
+    char* token2 = strtok(line2_copy, " \n"); 
+
+    while (token2) {
+        words2[wordCount2] = token2;
+        wordCount2++;
+        token2 = strtok(NULL, " \n");
+    }
+
+    if (wordCount1 != wordCount2) return false;
+    for (int i = 0; i < wordCount1; i++) {
+        if(strcmp(words1[i], words2[i])) {
+            strcpy(diff_in_1, words1[i]);
+            strcpy(diff_in_2, words2[i]);
+            differences++;
+        }
+    }
+    if(differences != 1) return false;
+    if(line_to_print == 1) {
+        printHighlightedWordInLine(diff_in_1, line1, false, 0);
+        return true;
+    }
+    else if(line_to_print == 2) {
+        printHighlightedWordInLine(diff_in_2, line2, false, 0);
+        return true;
+    }
+    
+
+}
 
 void compare_and_print_lines(char line1[], char line2[], int num1, int num2, string file1, string file2)
 {
     
     if(strcmp(line1, line2) == 0) return;
+    
     printf(ANSI_BLUE"%s---%d"ANSI_RESET"\n", file1, num1);
+    if(num_diff(line1, line2, 1) == false)
     printf("%s\n", line1);
     printf(ANSI_RED"%s---%d"ANSI_RESET"\n", file2, num2);
+    if(num_diff(line1, line2, 2) == false)
     printf("%s\n", line2);
 
 
@@ -2078,6 +2168,375 @@ void DIFF_COMMIT(string first, string second)
 
 }
 
+void STASH_PUSH(string message)
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+
+    DIR* STASHS = opendir(stashs);
+    struct dirent* entry;
+    int numStashs = 0;
+    while((entry = readdir(STASHS)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        numStashs++;
+    }
+    closedir(STASHS);
+    for(int i = numStashs - 1; i >= 0; i--) {
+        char old[MAX_LENGTH_STRING];
+        char new[MAX_LENGTH_STRING];
+        sprintf(old, "%s/.neogit/.STASHS/%d", IS_INITED(), i);
+        sprintf(new, "%s/.neogit/.STASHS/%d",  IS_INITED(), i + 1);
+        rename(old, new);
+    }
+    char head_stash[MAX_LENGTH_STRING];
+    sprintf(head_stash, "%s/.neogit/.STASHS/0", IS_INITED());
+    mkdir(head_stash, 0755);
+    char folder_on_stash[MAX_LENGTH_STRING];
+    sprintf(folder_on_stash, "%s/FOLDER", head_stash);
+    mkdir(folder_on_stash, 0755);
+    
+    DIR* FOLDER =  opendir(IS_INITED());
+    struct dirent*  file;
+    while((file = readdir(FOLDER)) != NULL) {
+        if (strcmp(file->d_name, "..") == 0 || strcmp(file->d_name, ".") == 0 || strcmp(file->d_name, ".neogit") == 0) continue;
+
+        if(file->d_type == DT_DIR) {
+            COPY_DIR(IS_INITED(), folder_on_stash,  file->d_name);
+        } else {
+            COPY_FILE(IS_INITED(), folder_on_stash ,file->d_name);
+        }
+    }
+
+    char stash_status[2 * MAX_LENGTH_STRING];
+    sprintf(stash_status, "%s/text.txt", head_stash);
+    FILE* TEXT = fopen(stash_status, "w");
+    fprintf(TEXT, "stash was on branch : %s\n", find_branch());
+    fprintf(TEXT, "stash was on commit : %X\n", find_head());
+    if(message) fprintf(TEXT,  "Message: %s\n", message);
+    else fprintf(TEXT, "there was no message for this stash!!\n");
+    fclose(TEXT);
+
+
+    COMMIT_CHECKOUT(find_head());
+}
+void STASH_LIST()
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+    DIR* STASHS = opendir(stashs);
+    struct dirent* entry;
+    int numStashs = 0;
+    while((entry = readdir(STASHS)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        numStashs++;
+    }
+    closedir(STASHS);
+    for(int i = 0; i < numStashs; i++) {
+        printf(ANSI_BLUE"stash index : %d"ANSI_RESET"\n", i);
+        char text[2 * MAX_LENGTH_STRING];
+        sprintf(text, "%s/%d/text.txt", stashs, i);
+        FILE* INFO = fopen(text, "r");
+        char line[MAX_LENGTH_STRING];
+        while(fgets(line, MAX_LENGTH_STRING, INFO)) {
+            printf(ANSI_MAGENTA"%s"ANSI_RESET, line);
+        }
+        fclose(INFO);
+
+    }
+}
+void compare_stash_and_commit(string repo1, string repo2, Uint commit_id, int stash_index, bool commit_base)
+{
+    DIR* REPO_1 = opendir(repo1);
+    struct dirent *entry; 
+    while((entry = readdir(REPO_1)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(find_file(repo2, entry->d_name)) {
+            char new_repo1[MAX_LENGTH_STRING];
+            char new_repo2[MAX_LENGTH_STRING];
+            sprintf(new_repo1, "%s/%s", repo1, entry->d_name);
+            sprintf(new_repo2, "%s/%s", repo2, entry->d_name);
+            if(entry->d_type == DT_DIR) {
+                printf(ANSI_BACK_MAGENTA"parent : %s"ANSI_RESET"\n", entry->d_name);
+                if(commit_base)
+                compare_stash_and_commit(new_repo1, new_repo2, commit_id, stash_index, true);
+                else
+                compare_stash_and_commit(new_repo1, new_repo2, commit_id, stash_index, false);
+            } else {
+                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
+            }
+        }
+        else {
+            if(entry->d_type == DT_DIR) {
+                if(commit_base)
+                printf(ANSI_BLUE"%s"ANSI_RESET" directroy exist in commit "ANSI_GREEN"%X"ANSI_RESET" but does not exist in stash "ANSI_CYAN"%d"ANSI_RESET"\n", entry->d_name, commit_id, stash_index);
+                else
+                printf(ANSI_BLUE"%s"ANSI_RESET" directroy exist in stash "ANSI_GREEN"%d"ANSI_RESET" but does not exist in commit "ANSI_CYAN"%X"ANSI_RESET"\n", entry->d_name, stash_index, commit_id);
+                continue;
+            } else {
+                if(commit_base)
+                printf(ANSI_BLUE"%s"ANSI_RESET" file exist in commit "ANSI_GREEN"%X"ANSI_RESET" but does not exist in stash "ANSI_CYAN"%d"ANSI_RESET"\n", entry->d_name, commit_id, stash_index);
+                else
+                printf(ANSI_BLUE"%s"ANSI_RESET" file exist in stash "ANSI_GREEN"%d"ANSI_RESET" but does not exist in commit "ANSI_CYAN"%X"ANSI_RESET"\n", entry->d_name, stash_index, commit_id);
+                continue;
+            }
+        }
+        
+    }
+}
+void STASH_SHOW(int index)
+{
+    char text[MAX_LENGTH_STRING];
+    sprintf(text, "%s/.neogit/.STASHS/%d/text.txt", IS_INITED(), index);
+    FILE* INFO = fopen(text, "r");
+    char line[MAX_LENGTH_STRING];
+    fgets(line, MAX_LENGTH_STRING, INFO);
+    fgets(line, MAX_LENGTH_STRING, INFO);
+    Uint commit_id = 0;
+    sscanf(line, "stash was on commit : %X\n", &commit_id);
+    fclose(INFO);
+    char commitAddress[MAX_LENGTH_STRING];
+    sprintf(commitAddress, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), commit_id);
+    char stashAddress[MAX_LENGTH_STRING];
+    sprintf(stashAddress, "%s/.neogit/.STASHS/%d/FOLDER", IS_INITED(), index);
+   
+    compare_stash_and_commit(commitAddress, stashAddress, commit_id, index, true);
+    compare_stash_and_commit(stashAddress, commitAddress, commit_id, index, false);
+
+}
+void STASH_CHECK_FILE(char src[], char dest[], char name[])
+{
+    if(find_file(dest, name)) {
+        char file1[MAX_LENGTH_STRING];
+        sprintf(file1, "%s/%s", src, name);
+        char file2[MAX_LENGTH_STRING];
+        sprintf(file2, "%s/%s", dest, name);
+        DIFF_FILE(file1, file2, 0, (int)1e9, 0, (int)1e9);
+    }
+    COPY_FILE(src, dest, name);
+}
+void STASH_COPY_DIR(string src, string dest, char name[]) 
+{
+    char source[MAX_LENGTH_STRING];
+    sprintf(source, "%s/%s", src, name);
+
+    char destination[MAX_LENGTH_STRING];
+    sprintf(destination, "%s/%s", dest, name);
+
+    DIR *directory = opendir(destination);
+    if (directory == NULL) {
+        mkdir(destination, 0755);
+    }
+    closedir(directory);
+
+    DIR *dir = opendir(source);
+    if (dir == NULL) {
+        perror("failed to open");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) {
+            continue;
+        }
+
+        if (entry->d_type == DT_DIR) {
+            
+            STASH_COPY_DIR(source, destination, entry->d_name);
+        } else {
+            
+            STASH_CHECK_FILE(source, destination, entry->d_name);
+        }
+    }
+
+    closedir(dir);
+
+}
+void STASH_POP(int index)
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+
+    DIR* STASHS = opendir(stashs);
+    struct dirent* file;
+    int numStashs = 0;
+    while((file = readdir(STASHS)) != NULL) {
+        if(strcmp(file->d_name, ".") == 0 || strcmp(file->d_name, "..") == 0) continue;
+        numStashs++;
+    }
+    closedir(STASHS);
+    char cur_stash[MAX_LENGTH_STRING];
+    sprintf(cur_stash, "%s/%d", stashs, index);
+    char stash_folder[MAX_LENGTH_STRING];
+    sprintf(stash_folder, "%s/FOLDER", cur_stash);
+    DIR* FOLDER_ON_STASH = opendir(stash_folder);
+    struct dirent* entry;
+
+    while((entry = readdir(FOLDER_ON_STASH)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(entry->d_type == DT_DIR) {
+            STASH_COPY_DIR(stash_folder, IS_INITED(), entry->d_name);
+        }
+        else {char file2[MAX_LENGTH_STRING];
+            STASH_CHECK_FILE(stash_folder, IS_INITED(), entry->d_name);
+        }
+    }
+    remove_directory(cur_stash);
+    for(int i = index; i < numStashs - 1; i++) {
+        char old_path[MAX_LENGTH_STRING];
+        char new_path[MAX_LENGTH_STRING];
+        sprintf(old_path, "%s/%d", stashs, i + 1);
+        sprintf(new_path, "%s/%d",  stashs, i);
+        rename(old_path, new_path);
+    }
+}
+void STASH_BRANCH(string branchName, int index)
+{
+    char stash_info[MAX_LENGTH_STRING];
+    sprintf(stash_info, "%s/.neogit/.STASHS/%d/text.txt", IS_INITED(),  index);
+    
+    FILE* INFO = fopen(stash_info, "r");
+
+    char line[MAX_LENGTH_STRING];
+    fgets(line, MAX_LENGTH_STRING, INFO);
+    fgets(line, MAX_LENGTH_STRING, INFO);
+
+    Uint commit_id = 0;
+    sscanf(line, "stash was on commit : %X\n", &commit_id);
+    make_branch(branchName, commit_id);
+    BRANCH_CHECKOUT(branchName);
+    STASH_POP(index);
+}
+void STASH_CLEAR()
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+    remove_directory(stashs);
+    mkdir(stashs, 0755);
+}
+void STASH_DROP(int index)
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+    DIR* STASHS = opendir(stashs);
+    struct dirent* entry;
+    int numStashs = 0;
+    while((entry = readdir(STASHS)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        numStashs++;
+    }
+    closedir(STASHS);
+    char cur_stash[MAX_LENGTH_STRING];
+    sprintf(cur_stash, "%s/%d", stashs, index);
+    remove_directory(cur_stash);
+    // for(int i = index; i < numStashs - 1; i++) {
+    //     char old_path[MAX_LENGTH_STRING];
+    //     char new_path[MAX_LENGTH_STRING];
+    //     sprintf(old_path, "%s/%d", stashs, i + 1);
+    //     sprintf(new_path, "%s/%d",  stashs, i);
+    //     rename(old_path, new_path);
+    // }
+}
+void STASH_ANALYZE(char* input[], int arguments)
+{
+    if(arguments == 0) {
+        perror(ANSI_BACK_RED"few arguments!!"ANSI_RESET);
+        return;
+    }
+    if(strcmp(input[0], "push") == 0) {
+        if(arguments == 1) {
+            STASH_PUSH(NULL);
+        }
+        else if(arguments == 3) {
+            if(strcmp(input[1], "-m")) {
+                perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+                return;
+            }
+            STASH_PUSH(input[2]);
+        } else {
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+            return;
+        }
+    }
+    else if(strcmp(input[0], "list") == 0) {
+        if(arguments != 1) {
+            perror(ANSI_BACK_RED"too many arguments!!"ANSI_RESET);
+            return;
+        }
+        STASH_LIST();
+    }
+    else if(strcmp(input[0], "show") == 0) {
+        if(arguments != 2) {
+            perror(ANSI_BACK_RED"usage : neogit stash show <index>"ANSI_RESET);
+            return;
+        }
+        STASH_SHOW(atoi(input[1]));
+    }
+    else if(strcmp(input[0], "pop") == 0) {
+            printf("hello %d\n", arguments);
+        if(arguments == 1) {
+            STASH_POP(0);
+        }
+        else if(arguments == 2){
+            int index = -1;
+            sscanf(input[1], "%d", &index);
+            if(index < 0) {
+                perror(ANSI_BACK_RED"usage : neogit  stash drop [--index=<n>](optional)"ANSI_RESET);
+                return;
+            }
+            STASH_DROP(index);
+        } else {
+            perror(ANSI_BACK_RED"usage : neogit  stash pop [--index=<n>](optional)"ANSI_RESET);
+            return;
+        }
+    }
+    else if(strcmp(input[0], "branch") == 0) {
+        if(arguments == 2) {
+            STASH_BRANCH(input[1], 0);
+        }
+        else if(arguments == 3) {
+            int index = -1;
+            sscanf(input[1], "%d", &index);
+            if(index < 0) {
+                perror(ANSI_BACK_RED"usage : neogit  stash drop [--index=<n>](optional)"ANSI_RESET);
+                return;
+            }
+            STASH_BRANCH(input[1], index);
+        } else {
+            perror(ANSI_BACK_RED"usage : neogit stash branch  <branch-name>" ANSI_RESET);
+            return;
+        }
+    }
+    else if(strcmp(input[0], "clear") == 0) {
+        if(arguments != 1) {
+            perror(ANSI_BACK_RED"too many arguments!"ANSI_RESET);
+            return;
+        }
+        STASH_CLEAR();
+    }
+    else if(strcmp(input[0], "drop") == 0) {
+        if(arguments == 1) {
+            STASH_DROP(0);
+        }
+        else if(arguments == 2){
+            int index = -1;
+            sscanf(input[1], "%d", &index);
+            if(index < 0) {
+                perror(ANSI_BACK_RED"usage : neogit  stash drop [--index=<n>](optional)"ANSI_RESET);
+                return;
+            }
+            STASH_DROP(index);
+        } else {
+            perror(ANSI_BACK_RED"usage : neogit  stash drop [--index=<n>](optional)"ANSI_RESET);
+            return;
+        }
+    } else {
+        perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+        return;
+    }
+}
 
 
 Uint find_commit(int n) 
@@ -2476,7 +2935,7 @@ int main(int argc, char *argv[])
             PRITNT_BRANCHES();
         }
         else {
-            make_branch(argv[2]);
+            make_branch(argv[2], find_head());
         }
     }
     else if(strcmp(argv[1], "checkout") == 0) {
@@ -2544,9 +3003,13 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+    else if(strcmp(argv[1], "stash") == 0) {
+        STASH_ANALYZE(&argv[2], argc - 2);
+    }
     else {
         RUN_ALIAS(argv[1]);
     }
 
     return 0;
 }
+
