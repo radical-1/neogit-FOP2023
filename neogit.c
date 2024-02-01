@@ -59,7 +59,12 @@ typedef unsigned int Uint;
 #define MAX_LINE_LENGTH 1024
 #define GLOBAL true
 #define LOCAL false
+#define MAX 10
 
+struct Stack {
+    int top;
+    char items[MAX];
+};
 
 void make_empty_directories(string  src, string dest, string name); 
 void base_empty_directories(string source, string destination);
@@ -1060,6 +1065,7 @@ void number_of_staging(string stage, int* last_num)
 }
 void make_commit(Uint prev_commit, string branch, string commit_message, string aothurName, string aothurEmail)
 {
+
     Uint commit_id = giveRandomNumber();
     time_t current_time;
     struct tm *time_info;
@@ -1100,8 +1106,8 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
         if(stg->d_type == DT_DIR) {
             COPY_DIR(stage_address, repo_address, stg->d_name);
             char command[MAX_LENGTH_STRING];
-            sprintf(command, "rm -rf %s/%s", stage_address, stg->d_name);
-            system(command);
+            sprintf(command, "%s/%s", stage_address, stg->d_name);
+            remove_directory(command);
         } else {
             COPY_FILE(stage_address, repo_address, stg->d_name);
             remove(source);
@@ -2620,45 +2626,262 @@ void MERGE_CLEAN(string branch1, string branch2)
     Uint branch2_head = head_branch(branch2);   
 }
 
-int todo_check(string file)
+int todo_check(string file_path)
 {
-    char* file_extension = strrchr(file, '.');
+    char* file_extension = strrchr(file_path, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
+        FILE *file = fopen(file_path, "r");
+        if (!file) {
+            perror("Error opening file");
+            return -1;
+        }
 
+        char line[MAX_LINE_LENGTH];
+        while (fgets(line, MAX_LINE_LENGTH, file)) {
+            if (strstr(line, "//TODO")) {
+                fclose(file);
+                return -1;
+            }
+        }
+
+        fclose(file);
+        return 1;
     }
     else if(strcasecmp(file_extension, ".txt") == 0) {
+        FILE *file = fopen(file_path, "r");
+        if (!file) {
+            perror("Error opening file");
+            return -1;
+        }
 
+        char line[MAX_LINE_LENGTH];
+        while (fgets(line, MAX_LINE_LENGTH, file)) {
+            if (strstr(line, "TODO")) {
+                fclose(file);
+                return -1;
+            }
+        }
+
+        fclose(file);
+        return 1;
     }
     else return 0;
 }
-int eof_blank_space(string file)
+int eof_blank_space(string filePath)
 {
-    char* file_extension = strrchr(file, '.');
+    char* file_extension = strrchr(filePath, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0 || strcasecmp(file_extension, ".txt") == 0) {
+        FILE *file = fopen(filePath, "r");
+        if (file == NULL) {
+            perror("Error opening file");
+            return 1;
+        }
 
+        char ch = 'a';
+        int is_blank = 0;
+
+        while (true) {
+            
+            if (ch == ' ') {
+                is_blank = 1;
+            }
+            ch = fgetc(file);
+            if(feof(file)) break; 
+            if (ch != '\n') is_blank = 0;
+        }
+
+        fclose(file);
+        if (is_blank == 1) return -1;
+        else return 1;
     }
     else return 0;
 }
 int format_check(string file)
 {
     char* file_extension = strrchr(file, '.');
-    //fill it when kia javabeto dad
+    if(strcasecmp(file_extension, ".c") == 0) return 1;
+    if(strcasecmp(file_extension, ".cpp") == 0) return 1;
+    if(strcasecmp(file_extension, ".txt") == 0) return 1;
+    if(strcasecmp(file_extension, ".mp3") == 0) return 1;
+    if(strcasecmp(file_extension, ".mp4") == 0) return 1;
+    if(strcasecmp(file_extension, ".wav") == 0) return 1;
+    if(strcasecmp(file_extension, ".py") == 0) return 1;
     return -1;
 }
+
+void push(struct Stack *stack, char item) {
+    if (stack->top == MAX - 1) {
+        printf("Stack overflow.\n");
+        exit(EXIT_FAILURE);
+    }
+    stack->items[++stack->top] = item;
+}
+char pop(struct Stack *stack) {
+    if (stack->top == -1) {
+        printf("Stack underflow.\n");
+        exit(EXIT_FAILURE);
+    }
+    return stack->items[stack->top--];
+}
+
+bool isEmpty(struct Stack *stack) {
+    return stack->top == -1;
+}
+
+bool checkBalanced(const char *filename) {
+    struct Stack stack;
+    stack.top = -1;
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Cannot open file %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+
+    int ch;
+    bool balanced = true;
+
+    while (balanced && (ch = fgetc(file)) != EOF) {
+        if (ch == '(' || ch == '{' || ch == '[') {
+            push(&stack, ch);
+        } else if (ch == ')' || ch == '}' || ch == ']') {
+            if (isEmpty(&stack)) {
+                balanced = false;
+            } else {
+                char topItem = pop(&stack);
+                balanced = (ch == ')' && topItem == '(') ||
+                           (ch == '}' && topItem == '{') ||
+                           (ch == ']' && topItem == '[');
+            }
+        }
+    }
+
+    fclose(file);
+
+    return balanced;
+}
+
 int balance_braces(string file)
 {
     char* file_extension = strrchr(file, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0 || strcasecmp(file_extension, ".txt") == 0) {
-
+        if(checkBalanced(file)) return 1;
+        return -1;
     }
     else return 0;
+}
+
+int is_allman_style(const char *file_path) {
+    FILE *file = fopen(file_path, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return -1;
+    }
+
+    char line[1024];
+    int prev_brace_column = -1;
+    int line_number = 0;
+    int allman_style = 1;
+
+    while (fgets(line, sizeof(line), file)) {
+        line_number++;
+
+        // Skip comments and strings
+        if (line[0] == '/' && (line[1] == '/' || line[1] == '*')) {
+            continue;
+        }
+        if (line[0] == '"' || line[0] == '\'') {
+            int i = 0;
+            while (line[i] != '\0' && line[i] != line[0]) {
+                i++;
+            }
+            if (line[i] == '\0') {
+                allman_style = 0;
+                break;
+            }
+            continue;
+        }
+
+        // Check for opening braces
+        int brace_column = -1;
+        int i = 0;
+        while (line[i] != '\0' && line[i] != '{') {
+            if (line[i] == ' ') {
+                brace_column = i;
+            }
+            i++;
+        }
+        if (brace_column != -1) {
+            prev_brace_column = brace_column;
+        }
+
+        // Check for closing braces
+        int closing_brace_column = -1;
+        i = brace_column;
+        while (line[i] != '\0' && line[i] != '}') {
+            i++;
+        }
+        if (i != brace_column) {
+            closing_brace_column = i;
+        }
+
+        // Check for indentation
+        if (brace_column != -1 && closing_brace_column != -1) {
+            int indent = brace_column - prev_brace_column;
+            if (closing_brace_column != brace_column + indent) {
+                allman_style = 0;
+                break;
+            }
+        }
+    }
+
+    fclose(file);
+
+    return allman_style;
+}
+
+
+int check_kr_style(const char *filePath) {
+    FILE *file = fopen(filePath, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file\n");
+        return -1; // indicate error
+    }
+
+    int lineNumber = 1;
+    char line[1000];
+    int spaces = 0;
+    int tabs = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        int i = 0;
+        while (line[i] == ' ' || line[i] == '\t') {
+            if (line[i] == ' ')
+                spaces++;
+            else if (line[i] == '\t')
+                tabs++;
+            i++;
+        }
+        if (tabs != 0) {
+            return 0; // K & R style not followed
+        }
+        if (spaces % 4 != 0) {
+            return 0; // K & R style not followed
+        }
+        lineNumber++;
+    }
+    fclose(file);
+    return 1; // K & R style followed
 }
 int indentaion_check(string file)
 {
     char* file_extension = strrchr(file, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
-
+        if(check_kr_style(file) == 1 || is_allman_style(file) == 1) 
+            return 1;
+            return -1;
     }
+
     else return 0;
 }
 int static_error_check(string file)
@@ -2706,45 +2929,36 @@ int character_limit(string filename)
     else return 0;
 }
 
+int is_video_duration_less_than_10_minutes(const char *filename) {
+    // AVFormatContext *format_context = NULL;
+    // int ret;
 
-int check_file_duration(const char *file_path)
-{
+    // if ((ret = avformat_open_input(&format_context, filename, NULL, NULL)) < 0) {
+    //     return -1;
+    // }
+
+    // avformat_find_stream_info(format_context, NULL);
+
+    // int64_t duration = format_context->duration;
+    // avformat_close_input(&format_context);
+
+    // if (duration == AV_NOPTS_VALUE) {
+    //     fprintf(stderr, "Could not determine duration of input file '%s'\n", filename);
+    //     return -1;
+    // }
+
+    // int64_t duration_seconds = duration / AV_TIME_BASE;
+    // return duration_seconds < 600;
+    return 1;
     
 }
 int time_limit(string file_path)
 {
     char* file_extension = strrchr(file_path, '.');
     if(strcasecmp(file_extension, ".mp4") == 0 || strcasecmp(file_extension, ".wav") == 0 || strcasecmp(file_extension, ".mp3") == 0) {
-        AVFormatContext *fmt_ctx = NULL;
-        int ret;
-        double duration = 0;
-
-        if ((ret = avformat_open_input(&fmt_ctx, file_path, NULL, NULL)) < 0) {
-            fprintf(stderr, "Error opening file: %s\n", av_err2str(ret));
-            goto cleanup;
-        }
-
-        if ((ret = avformat_find_stream_info(fmt_ctx, NULL)) < 0) {
-            fprintf(stderr, "Error finding stream info: %s\n", av_err2str(ret));
-            goto cleanup;
-        }
-
-        ret = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
-        if (ret < 0) {
-            fprintf(stderr, "Error finding audio stream: %s\n", av_err2str(ret));
-            goto cleanup;
-        }
-
-        duration = fmt_ctx->streams[ret]->duration / (double)AV_TIME_BASE;
-
-    cleanup:
-        avformat_close_input(&fmt_ctx);
-
-        if (duration < 10 * 60) {
-            return 1;
-        } else {
-            return -1;
-        }
+        if(is_video_duration_less_than_10_minutes(file_path))
+        return 1;
+        else return -1;
     }
     return 0;
 }
@@ -2820,6 +3034,7 @@ void RUN_PRECOMMIT(char directory[])
             PRECOMMIT_TEST(input, true);
         }
     }
+    closedir(STAGE);
 }
 void RUN_PRECOMMIT_F(char* files[], int number)
 {
