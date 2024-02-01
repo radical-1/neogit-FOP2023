@@ -2431,13 +2431,13 @@ void STASH_DROP(int index)
     char cur_stash[MAX_LENGTH_STRING];
     sprintf(cur_stash, "%s/%d", stashs, index);
     remove_directory(cur_stash);
-    // for(int i = index; i < numStashs - 1; i++) {
-    //     char old_path[MAX_LENGTH_STRING];
-    //     char new_path[MAX_LENGTH_STRING];
-    //     sprintf(old_path, "%s/%d", stashs, i + 1);
-    //     sprintf(new_path, "%s/%d",  stashs, i);
-    //     rename(old_path, new_path);
-    // }
+    for(int i = index; i < numStashs - 1; i++) {
+        char old_path[MAX_LENGTH_STRING];
+        char new_path[MAX_LENGTH_STRING];
+        sprintf(old_path, "%s/%d", stashs, i + 1);
+        sprintf(new_path, "%s/%d",  stashs, i);
+        rename(old_path, new_path);
+    }
 }
 void STASH_ANALYZE(char* input[], int arguments)
 {
@@ -2475,7 +2475,6 @@ void STASH_ANALYZE(char* input[], int arguments)
         STASH_SHOW(atoi(input[1]));
     }
     else if(strcmp(input[0], "pop") == 0) {
-            printf("hello %d\n", arguments);
         if(arguments == 1) {
             STASH_POP(0);
         }
@@ -2536,6 +2535,16 @@ void STASH_ANALYZE(char* input[], int arguments)
         perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
         return;
     }
+}
+
+
+void MERGE(string branch1, string branch2)
+{
+
+}
+void MERGE_CLEAN(string branch1, string branch2)
+{
+    
 }
 
 
@@ -3005,6 +3014,23 @@ int main(int argc, char *argv[])
     }
     else if(strcmp(argv[1], "stash") == 0) {
         STASH_ANALYZE(&argv[2], argc - 2);
+    }
+    else if(strcmp(argv[1], "merge") == 0) {
+        if(argc < 5 || argc > 6 || strcmp(argv[2], "-b")) {
+            perror(ANSI_BACK_RED"Usage : neogit merge -b <branch1-name> <branch2-name> -clean(optional)"ANSI_RESET);
+            return 1;
+        }
+        if(argc == 5) {
+            MERGE(argv[3], argv[4]);
+        }
+        if(argc == 6) {
+            if(strcmp(argv[5], "-clean")) {
+                perror(ANSI_BACK_RED"Usage : neogit merge -b <branch1-name> <branch2-name> -clean(optional)"ANSI_RESET);
+                return 1;
+            }
+            MERGE_CLEAN(argv[3], argv[4]);
+        }
+        
     }
     else {
         RUN_ALIAS(argv[1]);
