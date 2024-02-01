@@ -12,7 +12,16 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <ctype.h>
+#include <libavformat/avformat.h>
 
+
+#ifndef __USE_MISC
+#define __USE_MISC /* for dirfd() */
+#endif
+
+#ifndef DT_DIR
+#define DT_DIR 4 // Replace 4 with the appropriate value for your system
+#endif
 
 //define for colors 
 #define ANSI_RESET   "\x1b[0m"
@@ -119,27 +128,25 @@ Uint giveRandomNumber() {
 }
 // finding a file in a folder
 int find_file(const char *directory, const char *search_name) {
-    struct dirent *entry;
-    DIR *dp;
-    // Open the directory
-    dp = opendir(directory);
-    if (dp == NULL) {
-        perror("opendir");
-        return -1;
-    }
+    struct stat st;
 
-    // Read the directory entries
-    while ((entry = readdir(dp)) != NULL) {
-        if (strcmp(entry->d_name, search_name) == 0) {
-            // Found the file
-            closedir(dp);
+    char path[MAX_LENGTH_STRING];
+    sprintf(path, "%s/%s", directory, search_name);
+
+    if (stat(path, &st) == 0) {
+        if (S_ISREG(st.st_mode)) {
+           
             return 1;
+        } else if (S_ISDIR(st.st_mode)) {
+         
+            return 1;
+        } else {
+        
         }
+    } else {
+        
+        return 0;
     }
-
-    // Close the directory stream
-    closedir(dp);
-    return 0;
 }
 // check if neogit is initialized already or not
 string IS_INITED() {
@@ -157,6 +164,29 @@ string IS_INITED() {
     return NULL;
 }
 
+
+int is_text_file(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening file");
+        return 0;
+    }
+
+    char buffer[1024];
+    size_t bytes_read;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        for (size_t i = 0; i < bytes_read; i++) {
+            if (!isprint(buffer[i]) && !isspace(buffer[i])) {
+                fclose(file);
+                return 0;
+            }
+        }
+    }
+
+    fclose(file);
+    return 1;
+}
 
 bool compare_files(const char *file1, const char *file2) {
     FILE *f1 = fopen(file1, "rb");
@@ -427,6 +457,8 @@ void Open_dirctories_for_init(char neogitDir[])
     char repo_on_commit[MAX_LENGTH_STRING];
     char tags[MAX_LENGTH_STRING];
     char stashs[MAX_LENGTH_STRING];
+    char applied_hooks[MAX_LENGTH_STRING];
+
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
     sprintf(stage,"%s/.STAGING_AREA",neogitDir);
@@ -440,6 +472,8 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(repo_on_commit, "%s/.REPO_ON_COMMIT", neogitDir);
     sprintf(tags, "%s/.TAGS", neogitDir);
     sprintf(stashs, "%s/.STASHS", neogitDir);
+    sprintf(applied_hooks, "%s/.HOOKS", neogitDir);
+
 
     mkdir(repository, 0755);
     mkdir(stage, 0755);
@@ -453,7 +487,8 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(repo_on_commit, 0755);
     mkdir(tags, 0755);
     mkdir(stashs, 0755);
-    
+    mkdir(applied_hooks, 0755);
+
 }
 void init() {
     char cwd[200];
@@ -2075,8 +2110,6 @@ void DIFF_FILE(string file1_address, string file2_address, int beginLine1, int e
     }
     
 }
-
-
 void DIFF_FILE_ANALYZE(char* input[], int arguments)
 {
     if(arguments < 2) {
@@ -2135,6 +2168,7 @@ void COMPARE_COMMITS(string repo1, string repo2, string id1, string id2)
                 printf(ANSI_BACK_MAGENTA"parent : %s"ANSI_RESET"\n", entry->d_name);
                 COMPARE_COMMITS(new_repo1, new_repo2, id1, id2);
             } else {
+                if(is_text_file(new_repo1) && is_text_file(new_repo2))
                 DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
             }
         }
@@ -2263,6 +2297,7 @@ void compare_stash_and_commit(string repo1, string repo2, Uint commit_id, int st
                 else
                 compare_stash_and_commit(new_repo1, new_repo2, commit_id, stash_index, false);
             } else {
+                if(is_text_file(new_repo1) && is_text_file(new_repo2))
                 DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
             }
         }
@@ -2537,16 +2572,344 @@ void STASH_ANALYZE(char* input[], int arguments)
     }
 }
 
+Uint head_branch(string branchName)
+{
+    char branchAddress[MAX_LENGTH_STRING];
+    sprintf(branchAddress, "%s/.neogit/.BRANCHES/%s/HEAD_COMMIT.txt", IS_INITED(), branchName);
+    FILE *file = fopen(branchAddress, "r");
+    Uint id = 0;
+    fscanf(file, "HEAD COMMIT ID : %X",  &id);
+    return id;
 
+}
 void MERGE(string branch1, string branch2)
 {
+    char branches[MAX_LENGTH_STRING];
+    sprintf(branches, "%s/.neogit/.BRANCHES", IS_INITED());
+    if(find_file(branches, branch1) == 0) {
+        printf(ANSI_BACK_RED"%s is not a branch!"ANSI_RESET, branch1);
+        return;
+    }
+    if(find_file(branches, branch2) == 0) {
+        printf(ANSI_BACK_RED"%s is not a branch!!"ANSI_RESET, branch2);
+        return;
+    }
 
+    Uint branch1_head = head_branch(branch1);
+    Uint branch2_head = head_branch(branch2);
+    char commit_1[10];
+    char commit_2[10];
+    sprintf(commit_1, "%X", branch1_head);
+    sprintf(commit_2, "%X", branch2_head);
+            
 }
 void MERGE_CLEAN(string branch1, string branch2)
 {
-    
+    char branches[MAX_LENGTH_STRING];
+    sprintf(branches, "%s/.neogit/.BRANCHES", IS_INITED());
+    if(find_file(branches, branch1) == 0) {
+        printf(ANSI_BACK_RED"%s is not a branch!"ANSI_RESET, branch1);
+        return;
+    }
+    if(find_file(branches, branch2) == 0) {
+        printf(ANSI_BACK_RED"%s is not a branch!!"ANSI_RESET, branch2);
+        return;
+    }
+
+    Uint branch1_head = head_branch(branch1);
+    Uint branch2_head = head_branch(branch2);   
 }
 
+int todo_check(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
+
+    }
+    else if(strcasecmp(file_extension, ".txt") == 0) {
+
+    }
+    else return 0;
+}
+int eof_blank_space(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0 || strcasecmp(file_extension, ".txt") == 0) {
+
+    }
+    else return 0;
+}
+int format_check(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    //fill it when kia javabeto dad
+    return -1;
+}
+int balance_braces(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0 || strcasecmp(file_extension, ".txt") == 0) {
+
+    }
+    else return 0;
+}
+int indentaion_check(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
+
+    }
+    else return 0;
+}
+int static_error_check(string file)
+{
+    char* file_extension = strrchr(file, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
+
+    }
+    else return 0;
+}
+int file_size_check(string file)
+{
+    struct stat file_status;
+    if(stat(file, &file_status) < 0) {
+        return -1;
+    }
+    double size = (double)file_status.st_size / (1024 * 1024);
+    if (size > 5) return -1;
+    else return 1;
+}
+int character_limit(string filename)
+{
+    char* file_extension = strrchr(filename, '.');
+    if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0 || strcasecmp(file_extension, ".txt") == 0) {
+        FILE *file;
+        long count = 0;
+        char ch;
+
+        file = fopen(filename, "r");
+        if (file == NULL) {
+            perror("Error opening file");
+            return -1;
+        }
+
+        while ((ch = fgetc(file)) != EOF) {
+            if (count > 20000) return -1;
+            if (ch != '\n') {
+                count++;
+            }
+        }
+
+        fclose(file);
+        return 1;
+    }
+    else return 0;
+}
+
+
+int check_file_duration(const char *file_path)
+{
+    
+}
+int time_limit(string file_path)
+{
+    char* file_extension = strrchr(file_path, '.');
+    if(strcasecmp(file_extension, ".mp4") == 0 || strcasecmp(file_extension, ".wav") == 0 || strcasecmp(file_extension, ".mp3") == 0) {
+        AVFormatContext *fmt_ctx = NULL;
+        int ret;
+        double duration = 0;
+
+        if ((ret = avformat_open_input(&fmt_ctx, file_path, NULL, NULL)) < 0) {
+            fprintf(stderr, "Error opening file: %s\n", av_err2str(ret));
+            goto cleanup;
+        }
+
+        if ((ret = avformat_find_stream_info(fmt_ctx, NULL)) < 0) {
+            fprintf(stderr, "Error finding stream info: %s\n", av_err2str(ret));
+            goto cleanup;
+        }
+
+        ret = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+        if (ret < 0) {
+            fprintf(stderr, "Error finding audio stream: %s\n", av_err2str(ret));
+            goto cleanup;
+        }
+
+        duration = fmt_ctx->streams[ret]->duration / (double)AV_TIME_BASE;
+
+    cleanup:
+        avformat_close_input(&fmt_ctx);
+
+        if (duration < 10 * 60) {
+            return 1;
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+bool PRECOMMIT_TEST(string file, bool print)
+{
+    char filename[MAX_LENGTH_STRING];
+    for(int i = strlen(file) - 1; i >= 0; i--) {
+        if(file[i - 1] == '/') {
+            sprintf(filename, "%s",  &file[i]);
+            break;
+        }
+    }
+    if(print) printf(ANSI_BACK_BLUE"%s"ANSI_RESET"\n", filename);
+
+    bool result = true;
+    char hooks[MAX_LENGTH_STRING];
+    sprintf(hooks, "%s/.neogit/.HOOKS", IS_INITED());
+
+    DIR* HOOKS = opendir(hooks);
+
+    struct dirent* entry;
+
+    while(entry = readdir(HOOKS)) {
+        if(strcmp(entry->d_name, ".") == 0 || (strcmp(entry->d_name, "..")) == 0) continue;
+            int status = -1;
+        if(strcmp(entry->d_name, "todo-check") == 0) {
+            status = todo_check(file);
+        }
+        else if(strcmp(entry->d_name, "eof-blank-space") == 0) {
+            status = eof_blank_space(file);
+        }
+        else if(strcmp(entry->d_name, "format-check") == 0) {
+            status = format_check(file);
+        }
+        else if(strcmp(entry->d_name, "balance-braces") == 0) {
+            status = balance_braces(file);
+        }
+        else if(strcmp(entry->d_name, "indentation-check") == 0) {
+            status = indentaion_check(file);
+        }
+        else if(strcmp(entry->d_name, "static-error-check") == 0) {
+            status = static_error_check(file);
+        }
+        else if(strcmp(entry->d_name, "file-size-check") == 0) {
+            status = file_size_check(file);
+        }
+        else if(strcmp(entry->d_name, "time-limit") == 0) {
+            status = time_limit(file);
+        }
+
+        if(status == -1) result = false;
+            if(print) {
+                if(status == -1) printf("\"%s\"----------------------------------"ANSI_RED"FAILED"ANSI_RESET"\n",  entry->d_name);
+                else if(status == 1) printf("\"%s\"----------------------------------"ANSI_GREEN"PASSED"ANSI_RESET"\n",  entry->d_name);
+                else if(status == 0) printf("\"%s\"----------------------------------"ANSI_YELLOW"SKIPPED"ANSI_RESET"\n",  entry->d_name);
+            }
+        
+     }
+}
+void RUN_PRECOMMIT(char directory[])
+{
+    DIR* STAGE = opendir(directory);
+
+    struct dirent* entry;
+    while((entry = readdir(STAGE))) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char input[2 * MAX_LENGTH_STRING];
+        sprintf(input, "%s/%s",  directory, entry->d_name);
+        if(entry->d_type == DT_DIR) {
+            RUN_PRECOMMIT(input);
+        }
+        else {
+            PRECOMMIT_TEST(input, true);
+        }
+    }
+}
+void RUN_PRECOMMIT_F(char* files[], int number)
+{
+    char cwd[MAX_LENGTH_STRING];
+    getcwd(cwd, MAX_LENGTH_STRING);
+    for(int i = 0; i < number; i++) {
+            char file_in_stage[MAX_LENGTH_STRING];
+            sprintf(file_in_stage, "%s/.neogit/.STAGING_AREA%s/%s", IS_INITED(), find_file_path(cwd, IS_INITED()), files[i]);
+            PRECOMMIT_TEST(file_in_stage, true);
+
+        }
+}
+void HOOKS_LIST()
+{
+    printf(ANSI_CYAN"todo-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"eof-blank-space"ANSI_RESET"\n");
+    printf(ANSI_CYAN"format-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"balance-braces"ANSI_RESET"\n");
+    printf(ANSI_CYAN"indentaion-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"static-error-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"file-size-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"character-limt"ANSI_RESET"\n");
+    printf(ANSI_CYAN"time-limt"ANSI_RESET"\n");
+}
+void APPLIED_HOOKS()
+{
+    char hooks[MAX_LENGTH_STRING];
+    sprintf(hooks, "%s/.neogit/.HOOKS", IS_INITED());
+    DIR* HOOKS = opendir(hooks);
+    struct dirent* entry;
+    while((entry = readdir(HOOKS)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        printf(ANSI_MAGENTA"%s"ANSI_RESET"\n", entry->d_name);
+    }
+    closedir(HOOKS);
+}
+void PRECOMMIT_ADD_HOOK(string hook_id)
+{
+    char hook[MAX_LENGTH_STRING];
+    sprintf(hook, "%s/.neogit/.HOOKS/%s", IS_INITED(), hook_id);
+
+    FILE *fp = fopen(hook, "w");
+    fclose(fp);
+}
+void PRECOMMIT_REMOVE_HOOK(char hook_id[])
+{
+    char hooks[MAX_LENGTH_STRING];
+    sprintf(hooks, "%s/.neogit/.HOOKS", IS_INITED());
+    if(find_file(hooks, hook_id)) {
+        char hook[MAX_LENGTH_STRING];
+        sprintf(hook, "%s/%s", hooks, hook_id);
+        remove(hook);
+    }
+}
+void PRECOMMIT_ANALYZE(char* input[], int arguments)
+{
+    if(arguments == 0) {
+        char stage[MAX_LENGTH_STRING];
+        sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+        RUN_PRECOMMIT(stage);
+    }
+    else if(strcmp(input[0], "-f") == 0) {
+        RUN_PRECOMMIT_F(&input[1], arguments - 1);
+    }
+    else if(arguments == 2) {
+        if(strcmp(input[0], "hooks") == 0 && strcmp(input[1], "list") == 0) {
+            HOOKS_LIST();
+        }
+        else if(strcmp(input[0], "applied") == 0 && strcmp(input[1], "hooks") == 0) {
+            APPLIED_HOOKS();
+        } else {
+            perror(ANSI_BACK_RED"invalid inpurs!"ANSI_RESET);
+            return;
+        }
+    }
+    else if(arguments == 3) {
+        if(strcmp(input[0], "add") == 0 && strcmp(input[1], "hook") == 0) {
+            PRECOMMIT_ADD_HOOK(input[2]);
+        }
+        else if(strcmp(input[0],  "remove") == 0 && strcmp(input[1], "hook") == 0) {
+            PRECOMMIT_REMOVE_HOOK(input[2]);
+        } else {
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+            return;
+        }
+    } else {
+        perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
+        return;
+    }
+}
 
 Uint find_commit(int n) 
 {
@@ -3031,6 +3394,9 @@ int main(int argc, char *argv[])
             MERGE_CLEAN(argv[3], argv[4]);
         }
         
+    }
+    else if(strcmp(argv[1], "pre-commit") == 0) {
+        PRECOMMIT_ANALYZE(&argv[2], argc - 2);
     }
     else {
         RUN_ALIAS(argv[1]);
