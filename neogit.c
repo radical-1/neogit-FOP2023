@@ -6,12 +6,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/types.h>
 #include <time.h>
 #include <fnmatch.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <ctype.h>
+#include <math.h>
+#include <wait.h>
+#include <err.h>
+#include <limits.h>
 #include <libavformat/avformat.h>
 
 
@@ -2885,11 +2888,19 @@ int indentaion_check(string file)
 
     else return 0;
 }
+
+int check_compile_time_errors(char *filename) {
+    
+    return 0;
+}
+
+
 int static_error_check(string file)
 {
     char* file_extension = strrchr(file, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
-
+        if(check_compile_time_errors(file)) return -1;
+        return 1;
     }
     else return 0;
 }
@@ -2931,25 +2942,31 @@ int character_limit(string filename)
 }
 
 int is_video_duration_less_than_10_minutes(const char *filename) {
-    // AVFormatContext *format_context = NULL;
-    // int ret;
+    char command[256];
+    snprintf(command, sizeof(command), "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s", filename);
 
-    // if ((ret = avformat_open_input(&format_context, filename, NULL, NULL)) < 0) {
-    //     return -1;
-    // }
+    FILE *fp = popen(command, "r");
+    if (!fp) {
+        printf("Error: Failed to execute ffprobe command\n");
+        return 1;
+    }
 
-    // avformat_find_stream_info(format_context, NULL);
+    char duration_str[16];
+    if (fgets(duration_str, sizeof(duration_str), fp) == NULL) {
+        printf("Error: Failed to read output from ffprobe command\n");
+        pclose(fp);
+        return 1;
+    }
 
-    // int64_t duration = format_context->duration;
-    // avformat_close_input(&format_context);
+    pclose(fp);
 
-    // if (duration == AV_NOPTS_VALUE) {
-    //     fprintf(stderr, "Could not determine duration of input file '%s'\n", filename);
-    //     return -1;
-    // }
+    double duration = atof(duration_str);
+    if (duration > 10 * 60) {
+        return 1;
+    } else {
+        return 0;
+    }
 
-    // int64_t duration_seconds = duration / AV_TIME_BASE;
-    // return duration_seconds < 600;
     return 1;
     
 }
@@ -2957,9 +2974,8 @@ int time_limit(string file_path)
 {
     char* file_extension = strrchr(file_path, '.');
     if(strcasecmp(file_extension, ".mp4") == 0 || strcasecmp(file_extension, ".wav") == 0 || strcasecmp(file_extension, ".mp3") == 0) {
-        if(is_video_duration_less_than_10_minutes(file_path))
-        return 1;
-        else return -1;
+        if(is_video_duration_less_than_10_minutes(file_path)) return -1;
+        else return 1;
     }
     return 0;
 }
@@ -3144,7 +3160,7 @@ void check_precommits(char stage[])
             if(PRECOMMIT_TEST(input, false) == false) {
                 while(true) {
                     char decision;
-                    printf(ANSI_YELLOW"%s failed pre-commit test\ndo you want to continue your commit or not ?[Y\\N]"ANSI_RESET"\n", entry->d_name);
+                    printf(ANSI_YELLOW"%s failed pre-commits test\ndo you want to continue your commit or not ?[Y\\N]"ANSI_RESET"\n", entry->d_name);
                     scanf("%c", &decision);
                     getchar();
                     if(decision == 'Y' || decision == 'y') break;
@@ -3662,3 +3678,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
