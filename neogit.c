@@ -3010,14 +3010,15 @@ bool PRECOMMIT_TEST(string file, bool print)
             status = time_limit(file);
         }
 
-        if(status == -1) result = false;
-            if(print) {
-                if(status == -1) printf("\"%s\"----------------------------------"ANSI_RED"FAILED"ANSI_RESET"\n",  entry->d_name);
-                else if(status == 1) printf("\"%s\"----------------------------------"ANSI_GREEN"PASSED"ANSI_RESET"\n",  entry->d_name);
-                else if(status == 0) printf("\"%s\"----------------------------------"ANSI_YELLOW"SKIPPED"ANSI_RESET"\n",  entry->d_name);
-            }
+        if(print) {
+            if(status == -1) printf("\"%s\"----------------------------------"ANSI_RED"FAILED"ANSI_RESET"\n",  entry->d_name);
+            else if(status == 1) printf("\"%s\"----------------------------------"ANSI_GREEN"PASSED"ANSI_RESET"\n",  entry->d_name);
+            else if(status == 0) printf("\"%s\"----------------------------------"ANSI_YELLOW"SKIPPED"ANSI_RESET"\n",  entry->d_name);
+        }
         
+        if(status == -1) result = false;
      }
+     return result;
 }
 void RUN_PRECOMMIT(char directory[])
 {
@@ -3661,5 +3662,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-
