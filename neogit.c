@@ -55,7 +55,7 @@ typedef char* string;
 #define make_string(n) (string)calloc(n, sizeof(char))
 #define remove_string(str) free(str)
 typedef unsigned int Uint;
-#define MAX_LENGTH_STRING 500
+#define MAX_LENGTH_STRING 1024
 #define MAX_LINE_LENGTH 1024
 #define GLOBAL true
 #define LOCAL false
@@ -68,6 +68,7 @@ struct Stack {
 
 void make_empty_directories(string  src, string dest, string name); 
 void base_empty_directories(string source, string destination);
+void DECISION_FOR_COMMIT(string);
 Uint find_head();
 Uint find_commit(int);
 string find_name();
@@ -1926,10 +1927,10 @@ void REVERT(string message, Uint commit_id, bool commit)
         }
         closedir(FOLDER);
         if(message == NULL) {
-            COMMIT_FUNC(commit_message);
+            DECISION_FOR_COMMIT(commit_message);
             
         } else {
-            COMMIT_FUNC(message);
+            DECISION_FOR_COMMIT(message);
         }
         remove_directory(stage);
         rename(temp_stage, stage);
@@ -3126,6 +3127,47 @@ void PRECOMMIT_ANALYZE(char* input[], int arguments)
     }
 }
 
+
+void check_precommits(char stage[])
+{
+    DIR* dir = opendir(stage);
+    struct dirent* entry;
+    while(entry = readdir(dir)) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char input[MAX_LENGTH_STRING];
+        sprintf(input, "%s/%s", stage, entry->d_name);
+        if(entry->d_type == DT_DIR) {
+            check_precommits(input);
+        } 
+        else {
+            if(PRECOMMIT_TEST(input, false) == false) {
+                while(true) {
+                    char decision;
+                    printf(ANSI_YELLOW"%s failed pre-commit test\ndo you want to continue your commit or not ?[Y\\N]"ANSI_RESET"\n", entry->d_name);
+                    scanf("%c", &decision);
+                    getchar();
+                    if(decision == 'Y' || decision == 'y') break;
+                    else if(decision == 'N' || decision == 'n') {
+                        printf(ANSI_BLINK ANSI_BLUE"not commited!!"ANSI_RESET"\n");
+                        exit(1);
+                    }
+                    else printf(ANSI_BACK_RED"not valid!!"ANSI_RESET"\n");
+                }
+                
+            }
+        }
+    }
+}
+void DECISION_FOR_COMMIT(string message)
+{
+
+    char stage[MAX_LENGTH_STRING];
+    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    check_precommits(stage);
+
+    COMMIT_FUNC(message);
+}
+
 Uint find_commit(int n) 
 {
     if(n < 0) {
@@ -3395,7 +3437,7 @@ int main(int argc, char *argv[])
                 perror("this message is too long please change it");
                 return 1;
             }
-            COMMIT_FUNC(argv[3]);
+            DECISION_FOR_COMMIT(argv[3]);
         }
         else if(strcmp(argv[2], "-s") == 0) {
             char shortcut[MAX_LENGTH_STRING];
@@ -3409,7 +3451,7 @@ int main(int argc, char *argv[])
                 return 1;
             }
             string message = find_message(argv[3]);
-            COMMIT_FUNC(message);
+            DECISION_FOR_COMMIT(message);
         }
     }
     else if(strcmp(argv[1], "set") == 0) {
@@ -3619,4 +3661,5 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
 
