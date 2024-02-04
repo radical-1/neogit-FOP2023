@@ -59,7 +59,7 @@ typedef char* string;
 #define remove_string(str) free(str)
 typedef unsigned int Uint;
 #define MAX_LENGTH_STRING 1024
-#define MAX_LINE_LENGTH 1024
+#define MAX_LINE_LENGTH 512
 #define GLOBAL true
 #define LOCAL false
 #define MAX 10
@@ -235,12 +235,6 @@ bool compare_files(const char *file1, const char *file2) {
     fclose(f1);
     fclose(f2);
 
-    // if (equal) {
-    //     printf("Files are identical. Line %d, position %d\n", line, pos);
-    // } else {
-    //     printf("Files differ. Line %d, position %d\n", line, pos);
-    // }
-
     return equal;
 }
 
@@ -415,10 +409,18 @@ void make_branch(char branchName[], Uint head)
     char branchAddress[100];
     sprintf(branchAddress, "%s/.neogit/.BRANCHES/%s", IS_INITED(), branchName);
     mkdir(branchAddress, 0755);
+    
     char head_commit[MAX_LENGTH_STRING];
     char commits[MAX_LENGTH_STRING];
     sprintf(head_commit, "%s/HEAD_COMMIT.txt", branchAddress);
     sprintf(commits, "%s/COMMITS", branchAddress);
+   
+    char birth[MAX_LENGTH_STRING];
+    sprintf(birth, "%s/BORN.txt",  branchAddress);
+    FILE* BIRTH = fopen(birth, "w");
+    fprintf(BIRTH, "BIRTH COMMIT ID : %X\n",  head);
+    fclose(BIRTH);
+   
     FILE* HEAD_COMMIT = fopen(head_commit, "w");
     char local_info[MAX_LENGTH_STRING];
     sprintf(local_info, "%s/LOCAL_INFO/%s.txt", CONFIG_ADDRESS(), name_project());
@@ -467,6 +469,8 @@ void Open_dirctories_for_init(char neogitDir[])
     char tags[MAX_LENGTH_STRING];
     char stashs[MAX_LENGTH_STRING];
     char applied_hooks[MAX_LENGTH_STRING];
+    char merged_branchs[MAX_LENGTH_STRING];
+    char merge_info[MAX_LENGTH_STRING];
 
 
     sprintf(repository,"%s/.LOCAL_REPOSITORY",neogitDir);
@@ -482,6 +486,8 @@ void Open_dirctories_for_init(char neogitDir[])
     sprintf(tags, "%s/.TAGS", neogitDir);
     sprintf(stashs, "%s/.STASHS", neogitDir);
     sprintf(applied_hooks, "%s/.HOOKS", neogitDir);
+    sprintf(merged_branchs, "%s/.MERGED_BRANCHS", neogitDir);
+    sprintf(merge_info, "%s/.MERGE_INFO", neogitDir);
 
 
     mkdir(repository, 0755);
@@ -497,6 +503,8 @@ void Open_dirctories_for_init(char neogitDir[])
     mkdir(tags, 0755);
     mkdir(stashs, 0755);
     mkdir(applied_hooks, 0755);
+    mkdir(merged_branchs, 0755);
+    mkdir(merge_info, 0755);
 
 }
 void init() {
@@ -533,28 +541,20 @@ void init() {
         fgets(line, MAX_LENGTH_STRING, GLOBAL_INFO);
         fputs(line, LOCAL_INFO);
     }
-
-    char is_okay_commit[MAX_LENGTH_STRING];
-    sprintf(is_okay_commit, "%s/IS_OKAY_COMMIT.txt", neoGitDir);
-    FILE* IS_OKAY_COMMIT = fopen(is_okay_commit, "w");
-    fprintf(IS_OKAY_COMMIT, "YES");
-
-    char is_okay_checkout[MAX_LENGTH_STRING];
-    sprintf(is_okay_checkout, "%s/IS_OKAY_CHECKOUT.txt", neoGitDir);
-    FILE* IS_OKAY_CHECKOUT = fopen(is_okay_checkout, "w");
-    fprintf(IS_OKAY_CHECKOUT, "YES");
-    fclose(GLOBAL_INFO);
-    fclose(LOCAL_INFO);
-    fclose(IS_OKAY_COMMIT);
-    fclose(IS_OKAY_CHECKOUT);
-
-
+    char current_commmit[MAX_LENGTH_STRING];
+    sprintf(current_commmit, "%s/CURRENT_COMMIT.txt", neoGitDir);
+    FILE* CUR = fopen(current_commmit, "w");
+    fprintf(CUR, "0");
+    fclose(CUR);
     make_branch("master", 0);
+    char base_0[MAX_LENGTH_STRING];
+    sprintf(base_0, "%s/.neogit/.REPO_ON_COMMIT/0", IS_INITED());
+    mkdir(base_0, 0755);
+    base_empty_directories(IS_INITED(), base_0);
 
 
     printf(ANSI_BACK_BLACK"Initialized empty Git repository in %s"ANSI_RESET"\n", neoGitDir);
 }
-
 
 
 void COPY_FILE(char src[], char dest[], char name[])
@@ -650,6 +650,79 @@ void COPY_DIR(string src, string dest, char name[])
 }
 
 
+string read_info_from_commit(Uint commit_id, string what_you_want)
+{
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMIT_INFO", IS_INITED());
+    DIR* COMMITS = opendir(commits);
+    struct dirent* entry;
+
+    while(entry = readdir(COMMITS)) {
+        string time = make_string(MAX_LENGTH_STRING);
+        string message = make_string(MAX_LENGTH_STRING);
+        string name = make_string(MAX_LENGTH_STRING);
+        string email= make_string(MAX_LENGTH_STRING);
+        string branch = make_string(50);
+        Uint id = 0;
+
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char file[MAX_LENGTH_STRING];
+        sprintf(file, "%s/%s", commits, entry->d_name);
+        FILE* fp = fopen(file, "r");
+        char line[MAX_LENGTH_STRING];
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "Date & Time : %[^\n]", time);
+
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "Commit Message : %[^\n]", message);
+
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "Author Name : %[^\n]", name);
+
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "Author Email : %[^\n]", email);
+
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "Branch : %[^\n]", branch);
+
+        fgets(line, MAX_LENGTH_STRING,  fp);
+        sscanf(line, "COMMIT ID(HASH) : %X", &id);
+
+        fclose(fp);
+
+        if(id == commit_id) {
+            if(strcmp(what_you_want, "branch") == 0) {
+                return branch;
+            }
+            else if(strcmp(what_you_want, "name") == 0) {
+                return name;
+            }
+            else if(strcmp(what_you_want, "email") == 0) {
+                return email;
+            }
+            else if(strcmp(what_you_want, "message") == 0) {
+                return message;
+            }
+            else if(strcmp(what_you_want, "time") == 0) {
+                return time;
+            }
+            else {
+                printf("wrong input!!\n");
+                return NULL;
+            }
+        }
+        else {
+            remove_string(message);
+            remove_string(name);
+            remove_string(email);
+            remove_string(time);
+            remove_string(branch);
+        }
+
+    }
+
+}
+
 void ADD_FUNC(string input)
 {
     char cwd[200];
@@ -672,12 +745,6 @@ void ADD_FUNC(string input)
 
         COPY_FILE(cwd, destination, input);
     }
-
-    char is_okay_checkout[MAX_LENGTH_STRING];
-    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
-    FILE* IS_OKAY = fopen(is_okay_checkout, "w");
-    fprintf(IS_OKAY, "NO\n");
-    fclose(IS_OKAY);
 }
 void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 {
@@ -1149,17 +1216,27 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
 }
 void COMMIT_FUNC(string message)
 {
-    char is_okay[MAX_LENGTH_STRING];
-    sprintf(is_okay, "%s/.neogit/IS_OKAY_COMMIT.txt", IS_INITED());
-    FILE* IS_OKAY = fopen(is_okay, "r");
-    char result[20];
-    fscanf(IS_OKAY, "%s", result);
-    if(strcmp(result, "NO") == 0) {
-        printf("you can't commit know\nplease go back to head and then commit!\n");
-        fclose(IS_OKAY);
+    char current[MAX_LENGTH_STRING];
+    sprintf(current, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
+    FILE* CURRRENT = fopen(current, "r");
+    Uint cur_commit = 0;
+    fscanf(CURRRENT, "%X", &cur_commit);
+    if(cur_commit != find_head()) {
+        printf(ANSI_BACK_RED"you can't commit know ,please go back to head and then commit!"ANSI_RESET"\n");
+        printf("%X -- %X\n", cur_commit, find_head());
+        return;
+        
+    }
+    fclose(CURRRENT);
+    
+    int nums = 0;
+    char stage[MAX_LENGTH_STRING];
+    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    number_of_staging(stage, &nums);
+    if(nums == 0) {
+        perror(ANSI_BACK_RED"stage is empty please first add something to stage then commit!!"ANSI_RESET);
         return;
     }
-    fclose(IS_OKAY);
 
 
     char infoAddress[MAX_LENGTH_STRING];
@@ -1168,16 +1245,24 @@ void COMMIT_FUNC(string message)
 
     string line = make_string(MAX_LENGTH_STRING);
     char name[MAX_LENGTH_STRING];
-    char email[MAX_LENGTH_STRING];
+    char email[MAX_LENGTH_STRING];   
+    Uint commit_id = giveRandomNumber();
+ 
     char cur_branch[MAX_LENGTH_STRING];
     Uint prev_commit;
 
     fgets(line, MAX_LENGTH_STRING, info);
     sscanf(line, "user.name : %[^\n]", name);
-
+    if(strlen(name) == 0) {
+        perror(ANSI_BACK_RED"Author name is empty!!"ANSI_RESET);
+        return;
+    }
     fgets(line, MAX_LENGTH_STRING, info);
     sscanf(line, "user.email : %[^\n]", email);
-
+    if(strlen(email) == 0) {
+        perror(ANSI_BACK_RED"Author email is empty!!"ANSI_RESET);
+        return;
+    }
     fgets(line , MAX_LENGTH_STRING, info);
     sscanf (line , "branch : %[^\n]", cur_branch);
 
@@ -1188,11 +1273,12 @@ void COMMIT_FUNC(string message)
 
     make_commit(prev_commit, cur_branch, message, name, email);
 
-    char is_okay_checkout[MAX_LENGTH_STRING];
-    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
-    FILE* IS_OKAY_CHECKOUT = fopen(is_okay_checkout, "w");
-    fprintf(IS_OKAY_CHECKOUT, "YES\n");
-    fclose(IS_OKAY_CHECKOUT);
+    char current_commmit[MAX_LENGTH_STRING];
+    sprintf(current_commmit, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
+    FILE* CUR = fopen(current_commmit, "w");
+    fprintf(CUR, "%X", commit_id);
+    fclose(CUR);
+
 }
 
 
@@ -1290,14 +1376,11 @@ void change_folder(Uint commit_id)
 }
 bool EVERYTHING_IS_COMMITED()
 {
-    char is_okay_checkout[MAX_LENGTH_STRING];
-    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
-    FILE* IS_OKAY = fopen(is_okay_checkout, "r");
-    char condition[20];
-    fscanf(IS_OKAY, "%s\n", condition);
-    fclose(IS_OKAY);
-
-    if (strcmp(condition, "YES") == 0) return true;
+    int nums = 0;
+    char stage[MAX_LENGTH_STRING];
+    sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
+    number_of_staging(stage, &nums);
+    if (nums == 0) return true;
     else return false;
     
 }
@@ -1313,14 +1396,26 @@ void BRANCH_CHECKOUT(string branch)
     FILE* INFO = fopen(info, "r");
     FILE* TMP_INFO = fopen(temp_info, "w");
     if(INFO == NULL) {
-        printf("%s\n", info);
         return;
     }
+
+    char head[MAX_LENGTH_STRING];
+    sprintf(head, "%s/.neogit/.BRANCHES/%s/HEAD_COMMIT.txt", IS_INITED(), branch);
+    FILE* HEAD = fopen(head, "r");
+  
+    Uint head_id;
+    fscanf(HEAD, "HEAD COMMIT ID : %X\n", &head_id);
+
+    fclose(HEAD);
+
     for(int i = 0; i < 4; i++) {
         char temp[MAX_LENGTH_STRING];
         fgets(temp, MAX_LENGTH_STRING, INFO);
         if(i == 2) {
             sprintf(temp, "branch : %s\n", branch);
+        }
+        if(i == 3) {
+            sprintf(temp, "commit_id : %x\n", head_id);
         }
         fputs(temp, TMP_INFO);
     }
@@ -1331,24 +1426,23 @@ void BRANCH_CHECKOUT(string branch)
     rename(temp_info, info);
 
 
-    char head[MAX_LENGTH_STRING];
-    sprintf(head, "%s/.neogit/.BRANCHES/%s/HEAD_COMMIT.txt", IS_INITED(), branch);
-    FILE* HEAD = fopen(head, "r");
-  
-    Uint head_id;
-    fscanf(HEAD, "HEAD COMMIT ID : %X\n", &head_id);
-
-    fclose(HEAD);
+    
     change_folder(head_id);
 
+    char current_commmit[MAX_LENGTH_STRING];
+    sprintf(current_commmit, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
+    FILE* CUR = fopen(current_commmit, "w");
+    fprintf(CUR, "%X", head_id);
+    fclose(CUR);
 }
 void COMMIT_CHECKOUT(Uint id)
 {   
-    char is_okay[MAX_LENGTH_STRING];
-    sprintf(is_okay, "%s/.neogit/IS_OKAY_COMMIT.txt", IS_INITED());
-    FILE* IS_OKAY_COMMIT = fopen(is_okay, "w");
-    fprintf(IS_OKAY_COMMIT, "NO");
-    fclose(IS_OKAY_COMMIT);
+    char current_commmit[MAX_LENGTH_STRING];
+    sprintf(current_commmit, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
+    FILE* CUR = fopen(current_commmit, "w");
+    fprintf(CUR, "%X", id);
+    fclose(CUR);
+
     change_folder(id);
 }
 void CHECKOUT(string input)
@@ -1723,7 +1817,7 @@ void show_tag_information(string tag_name)
         return;
     }
 
-    printf("\ntag : %s\n", tag_name);
+    printf("\n"ANSI_BACK_GREEN"tag : %s"ANSI_RESET"\n", tag_name);
     for(int i = 0; i < 4; i++) {
         char line[MAX_LENGTH_STRING];
         fgets(line, MAX_LENGTH_STRING, TAG);
@@ -1734,6 +1828,7 @@ void show_tag_information(string tag_name)
     
 
 }
+
 
 
 int isWordBoundary(char ch) {
@@ -1865,19 +1960,14 @@ void REVERT(string message, Uint commit_id, bool commit)
         return;
     }
 
-    char is_okay_checkout[MAX_LENGTH_STRING];
-    sprintf(is_okay_checkout, "%s/.neogit/IS_OKAY_CHECKOUT.txt", IS_INITED());
-    FILE *file = fopen(is_okay_checkout, "w");
-    fprintf(file, "YES");
-    fclose(file);
-
     COMMIT_CHECKOUT(commit_id);
 
-    char is_okay_commit[MAX_LENGTH_STRING];
-    sprintf(is_okay_commit, "%s/.neogit/IS_OKAY_COMMIT.txt", IS_INITED());
-    FILE *fp = fopen(is_okay_commit, "w");
-    fprintf(fp, "YES");
-    fclose(fp);
+    char curr[MAX_LENGTH_STRING];
+    sprintf(curr, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
+    FILE* CURR = fopen(curr, "w");
+    fprintf(CURR, "%X", find_head());
+    fclose(CURR);
+    
 
     char commit_message[MAX_LENGTH_STRING];
     if(message == NULL) {
@@ -1939,35 +2029,82 @@ void REVERT(string message, Uint commit_id, bool commit)
         rename(temp_stage, stage);
     }
 }
+void CHECK_MERGE(string message, Uint commit_id, bool commit)
+{
+    string branch = read_info_from_commit(commit_id, "branch");
+    printf("%s\n", branch);
+    
+    char merge[MAX_LENGTH_STRING];
+    sprintf(merge, "%s/.neogit/.MERGE_INFO", IS_INITED());
+    DIR* MERGE = opendir(merge);
+    struct dirent* entry;
+    
+    while(entry = readdir(MERGE)) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char info_file[MAX_LENGTH_STRING];
+        sprintf(info_file, "%s/%s", merge, entry->d_name);
+        FILE* fp = fopen(info_file, "r");
+        char line[MAX_LINE_LENGTH];
+
+        Uint base_commit;
+        char base[100];
+        fgets(line, MAX_LINE_LENGTH, fp);
+        sscanf(line, "%X -> %[^\n]",  &base_commit, base);
+
+        Uint merge_commit;
+        char merged[100];
+        fgets(line, MAX_LINE_LENGTH, fp);
+        sscanf(line,"%X -> %s",&merge_commit, merged);
+
+        fclose(fp);
+        if(strcmp(base,  branch) == 0) {
+            string time_new_commit = read_info_from_commit(commit_id, "time");
+            string time_merged_commit = read_info_from_commit(base_commit, "time");
+            if(compare_date_time_strings(time_new_commit, time_merged_commit) == -1) {
+                printf(ANSI_BACK_RED"there is a merge in this branch after this commit, so you can not revert to this commit!"ANSI_RESET"\n");
+                return;
+            }
+            
+        }
+        else if(strcmp(merged, branch) == 0) {
+            printf(ANSI_BACK_RED"this commit is for a merged branch and you can not revert to it!"ANSI_RESET"\n");
+            return;
+        }
+
+    }
+    closedir(MERGE);
+
+    REVERT(message, commit_id, commit);
+}
 void REVERT_ANALYZE(char* input[], int arguments) 
 {
     if(arguments == 0) {
-        REVERT(NULL, find_head(), true);
+        CHECK_MERGE(NULL, find_head(), true);
     }
     else if(arguments == 1) {
         if(strcmp(input[0], "-n") == 0) {
-            REVERT(NULL, find_head(), false);
+            CHECK_MERGE(NULL, find_head(), false);
             
         }
         else if(strncmp(input[0], "HEAD-",  5) == 0) {
             int num = 0;
             sscanf(input[0],  "HEAD-%d", &num);
-            REVERT(NULL, find_commit(num), true);
+            CHECK_MERGE(NULL, find_commit(num), true);
         }
         else {
             Uint commit_id;
             sscanf(input[0], "%X", &commit_id);
-            REVERT(NULL, commit_id,  true);
+            CHECK_MERGE(NULL, commit_id,  true);
         }
     }
     else if(arguments == 2) {
         if(strcmp(input[0], "-m") == 0) {
-            REVERT(input[1],  find_head(), true);
+            CHECK_MERGE(input[1],  find_head(), true);
         }
         else if(strcmp(input[0], "-n") == 0) {
             Uint commit_id;
             sscanf(input[1], "%X", &commit_id);
-            REVERT(NULL, commit_id,  false);
+            CHECK_MERGE(NULL, commit_id,  false);
         } else {
             perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
             return;
@@ -1986,6 +2123,8 @@ void REVERT_ANALYZE(char* input[], int arguments)
             return;
     }
 }
+
+
 
 bool isWhiteSpace(char line[]) {
     for (int i = 0; i < strlen(line); i++) {
@@ -2451,6 +2590,7 @@ void STASH_BRANCH(string branchName, int index)
     Uint commit_id = 0;
     sscanf(line, "stash was on commit : %X\n", &commit_id);
     make_branch(branchName, commit_id);
+
     BRANCH_CHECKOUT(branchName);
     STASH_POP(index);
 }
@@ -2592,43 +2732,253 @@ Uint head_branch(string branchName)
     return id;
 
 }
-void MERGE(string branch1, string branch2)
+bool print_conflict_lines(char line1[], char line2[], int num1, int num2, string branch1, string branch2, string file_address, string mergedFile)
 {
-    char branches[MAX_LENGTH_STRING];
-    sprintf(branches, "%s/.neogit/.BRANCHES", IS_INITED());
-    if(find_file(branches, branch1) == 0) {
-        printf(ANSI_BACK_RED"%s is not a branch!"ANSI_RESET, branch1);
-        return;
+    FILE* MERGED = fopen(mergedFile, "a");
+       
+    if(strcmp(line1, line2) == 0) {
+        fputs(line1, MERGED);
+        fclose(MERGED);
+        return true;
+    } 
+    printf(ANSI_BLUE"<%s>"ANSI_RESET"\n", file_address);
+    printf(ANSI_BACK_CYAN"<%s>-<%d>"ANSI_RESET"\n", branch1, num1 + 1);
+    if(num_diff(line1, line2, 1) == false)
+    
+    printf("%s\n", line1);
+    printf(ANSI_BACK_CYAN"<%s>-<%d>"ANSI_RESET"\n", branch2, num2 + 1);
+    if(num_diff(line1, line2, 2) == false)
+    printf("%s\n", line2);
+    
+    printf("there is a conflict happend here!\n");
+    printf("which line do you want in your final file?");
+    printf("you have this options :\n");
+    printf("line that is in branch : %s (enter 1)\n", branch1);
+    printf("line that is in branch : %s (enter 2)\n", branch2);
+    printf("you can enter another line : (enter n)\n");
+    printf("you can stop merging! (enter q)\n");
+    
+    char choice;
+    scanf(" %c", &choice);
+    getchar();
+    
+    if(choice == '1') {
+        fputs(line1, MERGED);
+        fclose(MERGED);
     }
-    if(find_file(branches, branch2) == 0) {
-        printf(ANSI_BACK_RED"%s is not a branch!!"ANSI_RESET, branch2);
-        return;
+    else if(choice == '2') {
+        fputs(line2, MERGED);
+        fclose(MERGED);
+    }
+    else if(choice == 'n') {
+        printf("you decided to enter new line, please enter your line :\n");
+        char input_line[MAX_LINE_LENGTH];
+        fgets(input_line, MAX_LINE_LENGTH, stdin);
+        fputs(input_line,  MERGED);
+        fclose(MERGED);
+    }
+    else if(choice  == 'q') {
+        printf(ANSI_BLINK ANSI_BLUE"merge is canceled!!"ANSI_RESET);
+        fclose(MERGED);
+        return false;
+    }
+    else {
+        printf(ANSI_RED "wrong option!!\ni decide first line for merge"ANSI_RESET);
+        fputs(line1, MERGED);
+        fclose(MERGED);
+    }
+    
+
+    return true;
+} 
+bool CONFLICT_DIFF(string file1_address, string file2_address, string branch1, string branch2, string file_address, string finalFile)
+{
+    FILE* first = fopen(file1_address, "r");
+    FILE* second = fopen(file2_address, "r");
+
+    char line1[MAX_LENGTH_STRING];
+    char line2[MAX_LENGTH_STRING];
+
+    int lineNum1 = -1;
+    int lineNum2 = -1;
+    while(true) {
+        string check1;
+        string check2;
+        check1 = fgets(line1, MAX_LENGTH_STRING, first);
+        lineNum1++;
+        check2 = fgets(line2, MAX_LENGTH_STRING, second);
+        lineNum2++;
+        while(!isWhiteSpace(line1)) {
+            lineNum1++;
+           check1 = fgets(line1, MAX_LENGTH_STRING, first);
+           if(check1 == NULL) break;
+        }
+        while(!isWhiteSpace(line2)) {
+            lineNum2++;
+           check2 = fgets(line2, MAX_LENGTH_STRING, second);
+           if(check2 == NULL) break;
+        }
+        if(check1 == NULL || check2 == NULL) break;
+        
+        bool result = print_conflict_lines(line1, line2,  lineNum1, lineNum2, branch1, branch2, file_address, finalFile);
+        if(result == false) return false;
+
     }
 
-    Uint branch1_head = head_branch(branch1);
-    Uint branch2_head = head_branch(branch2);
-    char commit_1[10];
-    char commit_2[10];
-    sprintf(commit_1, "%X", branch1_head);
-    sprintf(commit_2, "%X", branch2_head);
-            
+    FILE* merged = fopen(finalFile, "a");
+    
+    while(fgets(line1,  MAX_LENGTH_STRING, first)){
+        fputs(line1,  merged);
+    }
+    while(fgets(line2,  MAX_LENGTH_STRING, second)) {
+        fputs(line2,merged);
+    }
+    
+    fclose(merged);
+    return true;    
 }
-void MERGE_CLEAN(string branch1, string branch2)
+bool applying_second_commit_on_marge(string repo, string finalRepo, string branch1, string branch2, string repo_address)
 {
-    char branches[MAX_LENGTH_STRING];
-    sprintf(branches, "%s/.neogit/.BRANCHES", IS_INITED());
-    if(find_file(branches, branch1) == 0) {
-        printf(ANSI_BACK_RED"%s is not a branch!"ANSI_RESET, branch1);
-        return;
-    }
-    if(find_file(branches, branch2) == 0) {
-        printf(ANSI_BACK_RED"%s is not a branch!!"ANSI_RESET, branch2);
-        return;
-    }
+    DIR* dp = opendir(repo);
+    struct dirent* entry;
 
-    Uint branch1_head = head_branch(branch1);
-    Uint branch2_head = head_branch(branch2);   
+    while(entry = readdir(dp)) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char new_repo[MAX_LENGTH_STRING];
+        char new_finalRepo[MAX_LENGTH_STRING];
+        sprintf(new_repo, "%s/%s", repo, entry->d_name);
+        sprintf(new_finalRepo, "%s/%s", finalRepo, entry->d_name);
+
+        if(entry->d_type == DT_DIR) {
+
+            applying_second_commit_on_marge(new_repo, new_finalRepo, branch1, branch2, repo_address);
+        }
+        else {
+            if(find_file(finalRepo, entry->d_name) && is_text_file(new_repo)) {
+                char merged[MAX_LENGTH_STRING];
+                sprintf(merged, "%s/temp.txt", finalRepo);
+                FILE* temp = fopen(merged, "w");
+                fclose(temp);
+                
+                bool okay_conflict =  CONFLICT_DIFF(new_repo, new_finalRepo, branch1, branch2, find_file_path(new_finalRepo, repo_address), merged);
+                if(okay_conflict == false) return false;
+                
+                remove(new_finalRepo);
+                rename(merged, new_finalRepo);
+            }
+            else COPY_FILE(repo, finalRepo, entry->d_name);
+        }
+    }
+    return true;
 }
+bool making_merged_commit(Uint base, Uint merging, string branch1, string branch2) 
+{
+    char temp_repo[MAX_LENGTH_STRING];
+    sprintf(temp_repo, "%s/.neogit/.REPO_ON_COMMIT/temp_repo", IS_INITED());
+    mkdir(temp_repo, 0755);
+    char base_repo[MAX_LENGTH_STRING];
+    sprintf(base_repo, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), base);
+    DIR*  dp = opendir(base_repo);
+    printf("%s\n%s\n", temp_repo, base_repo);
+    struct dirent* entry; 
+    
+    while(entry = readdir(dp)) {
+        if(strcmp(entry->d_name , ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        if(entry->d_type == DT_DIR) COPY_DIR(base_repo, temp_repo, entry->d_name);
+        else COPY_FILE(base_repo, temp_repo, entry->d_name);
+    }
+    closedir(dp);
+
+    
+    char merging_repo[MAX_LENGTH_STRING];
+    sprintf(merging_repo, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), merging);
+    bool result = applying_second_commit_on_marge(merging_repo, temp_repo, branch1, branch2, temp_repo);
+    if(result == false) {
+        remove_directory(temp_repo);
+        return false;
+    }
+    remove_directory(base_repo);
+    rename(temp_repo, base_repo);
+
+    return true;
+
+}
+void remove_stashs_in_merge(string target_branch)
+{
+    char stashs[MAX_LENGTH_STRING];
+    sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
+    
+    DIR *dir = opendir(stashs);
+    struct dirent* entry;
+    
+    while(entry = readdir(dir)) {
+        if(strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0) continue;
+
+        char text[MAX_LENGTH_STRING];
+        sprintf("%s/%s/text.txt", stashs, entry->d_name);
+        FILE* info = fopen(text, "r");
+        
+        char line[MAX_LINE_LENGTH];
+        fgets(line , MAX_LINE_LENGTH, text);
+        fclose(text);
+
+        char branch[50];
+        sscanf(line, "stash was on branch : %[^\n]", branch);
+        if(strcmp(target_branch, branch) == 0) {
+            STASH_DROP(atoi(entry->d_name));
+        }
+
+    }
+}
+void put_merge_information(string base_branch, Uint base_commit, string merge_branch, Uint merge_commit)
+{
+    char new_merge[MAX_LENGTH_STRING];
+    sprintf(new_merge, "%s/.neogit/.MERGE_INFO/%s.txt",  IS_INITED(), merge_branch);
+    FILE* info = fopen(new_merge, "w");
+
+    fprintf(info, "%X -> %s\n", base_commit, base_branch);
+    fprintf(info, "%X -> %s\n", merge_commit, merge_branch);
+
+    fclose(info);
+
+}
+void MERGE(string base_branch, string merging_branch)
+{
+    //check for valid branches
+    char branchs[MAX_LENGTH_STRING];
+    sprintf(branchs, "%s/.neogit/.BRANCHES", IS_INITED());
+    if (find_file(branchs,  base_branch) == 0 || find_file(branchs, merging_branch) == 0) {
+        perror(ANSI_BACK_RED"invalid branch!!"ANSI_RESET);
+        return;
+    }
+    // base branch for merge is always first one but if second one is master we shourld chanhge them 
+    if(strcmp(merging_branch, "master") == 0) {
+        strcpy(merging_branch, base_branch);
+        strcpy(base_branch, "master");
+    }
+    // get the HEAD of each branch
+    Uint head_of_base = head_branch(base_branch);
+    Uint head_of_merging = head_branch(merging_branch);
+    bool result = making_merged_commit(head_of_base, head_of_merging, base_branch, merging_branch);
+    if(result == false) {
+        printf("Merge failed\n");
+        return;
+    }
+    char merged_branch[MAX_LENGTH_STRING];
+    sprintf(merged_branch, "%s/%s", branchs, merging_branch);
+
+    char is_merged[MAX_LENGTH_STRING];
+    sprintf(is_merged, "%s/.neogit/.MERGED_BRANCHS", IS_INITED());
+    COPY_DIR(branchs, is_merged, merging_branch);
+    remove_directory(merged_branch);
+    remove_stashs_in_merge(merging_branch);
+    put_merge_information(base_branch, head_of_base, merging_branch, head_of_merging);
+
+    printf(ANSI_CYAN"%s branch merged to %s branch succesfully!"ANSI_RESET"\n",merging_branch, base_branch);
+}
+
+
 
 int todo_check(string file_path)
 {
@@ -2712,7 +3062,6 @@ int format_check(string file)
     if(strcasecmp(file_extension, ".py") == 0) return 1;
     return -1;
 }
-
 void push(struct Stack *stack, char item) {
     if (stack->top == MAX - 1) {
         printf("Stack overflow.\n");
@@ -2727,11 +3076,9 @@ char pop(struct Stack *stack) {
     }
     return stack->items[stack->top--];
 }
-
 bool isEmpty(struct Stack *stack) {
     return stack->top == -1;
 }
-
 bool checkBalanced(const char *filename) {
     struct Stack stack;
     stack.top = -1;
@@ -2764,7 +3111,6 @@ bool checkBalanced(const char *filename) {
 
     return balanced;
 }
-
 int balance_braces(string file)
 {
     char* file_extension = strrchr(file, '.');
@@ -2774,7 +3120,6 @@ int balance_braces(string file)
     }
     else return 0;
 }
-
 int is_allman_style(const char *file_path) {
     FILE *file = fopen(file_path, "r");
     if (file == NULL) {
@@ -2843,8 +3188,6 @@ int is_allman_style(const char *file_path) {
 
     return allman_style;
 }
-
-
 int check_kr_style(const char *filePath) {
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
@@ -2888,13 +3231,10 @@ int indentaion_check(string file)
 
     else return 0;
 }
-
 int check_compile_time_errors(char *filename) {
     
     return 0;
 }
-
-
 int static_error_check(string file)
 {
     char* file_extension = strrchr(file, '.');
@@ -2921,7 +3261,6 @@ int character_limit(string filename)
         FILE *file;
         long count = 0;
         char ch;
-
         file = fopen(filename, "r");
         if (file == NULL) {
             perror("Error opening file");
@@ -2929,18 +3268,17 @@ int character_limit(string filename)
         }
 
         while ((ch = fgetc(file)) != EOF) {
-            if (count > 20000) return -1;
             if (ch != '\n') {
                 count++;
             }
         }
 
         fclose(file);
+        if (count > 20000) return -1;
         return 1;
     }
     else return 0;
 }
-
 int is_video_duration_less_than_10_minutes(const char *filename) {
     char command[256];
     snprintf(command, sizeof(command), "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s", filename);
@@ -2979,6 +3317,7 @@ int time_limit(string file_path)
     }
     return 0;
 }
+
 bool PRECOMMIT_TEST(string file, bool print)
 {
     char filename[MAX_LENGTH_STRING];
@@ -3021,6 +3360,9 @@ bool PRECOMMIT_TEST(string file, bool print)
         }
         else if(strcmp(entry->d_name, "file-size-check") == 0) {
             status = file_size_check(file);
+        }
+        else if(strcmp(entry->d_name, "character-limit") == 0) {
+            status = character_limit(file);
         }
         else if(strcmp(entry->d_name, "time-limit") == 0) {
             status = time_limit(file);
@@ -3591,11 +3933,6 @@ int main(int argc, char *argv[])
         }
         if(strcmp(argv[2], "HEAD") == 0) {
             COMMIT_CHECKOUT(find_head());
-            char is_okay_commit[MAX_LENGTH_STRING];
-            sprintf(is_okay_commit, "%s/.neogit/IS_OKAY_COMMIT.txt", IS_INITED());
-            FILE* IS_OKAY_COMMIT = fopen(is_okay_commit, "w");
-            fprintf(IS_OKAY_COMMIT, "YES");
-            fclose(IS_OKAY_COMMIT);
         }
         else if(strncmp(argv[2], "HEAD-", 5) == 0) {
             int n = 0;
@@ -3653,19 +3990,12 @@ int main(int argc, char *argv[])
         STASH_ANALYZE(&argv[2], argc - 2);
     }
     else if(strcmp(argv[1], "merge") == 0) {
-        if(argc < 5 || argc > 6 || strcmp(argv[2], "-b")) {
-            perror(ANSI_BACK_RED"Usage : neogit merge -b <branch1-name> <branch2-name> -clean(optional)"ANSI_RESET);
+        if(argc != 5 || strcmp(argv[2], "-b")) {
+            perror(ANSI_BACK_RED"Usage : neogit merge -b <branch1-name> <branch2-name>"ANSI_RESET);
             return 1;
         }
         if(argc == 5) {
             MERGE(argv[3], argv[4]);
-        }
-        if(argc == 6) {
-            if(strcmp(argv[5], "-clean")) {
-                perror(ANSI_BACK_RED"Usage : neogit merge -b <branch1-name> <branch2-name> -clean(optional)"ANSI_RESET);
-                return 1;
-            }
-            MERGE_CLEAN(argv[3], argv[4]);
         }
         
     }
