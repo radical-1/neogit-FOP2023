@@ -28,7 +28,7 @@
 
 //define for colors 
 #define ANSI_RESET   "\x1b[0m"
-#define ANSI_ACK   "\x1b[30m"
+#define ANSI_BLACK   "\x1b[30m"
 #define ANSI_RED     "\x1b[31m"
 #define ANSI_GREEN   "\x1b[32m"
 #define ANSI_YELLOW  "\x1b[33m"
@@ -36,6 +36,7 @@
 #define ANSI_MAGENTA "\x1b[35m"
 #define ANSI_CYAN    "\x1b[36m"
 #define ANSI_WHITE   "\x1b[37m"
+
 
 #define ANSI_BOLD    "\x1b[1m"
 #define ANSI_FAINT   "\x1b[2m"
@@ -301,6 +302,8 @@ void information(char model[], char input[], string project)
                 fputs(line, TEMP);
             }
         }
+        project[strlen(project) - 4] = '\0';
+        printf(ANSI_CYAN"name is updated for %s project successfully!"ANSI_RESET"\n", project);
     }
     else if(MOD == EMAIL) {
         for (int i = 0; i < 4; i++) {
@@ -314,6 +317,7 @@ void information(char model[], char input[], string project)
                 fputs(line, TEMP);
             }
         }
+        printf(ANSI_CYAN"email is updated for %s project successfully!"ANSI_RESET"\n", project);
     }
 
     fclose(INFO);
@@ -345,6 +349,10 @@ void global_information(char model[], char input[])
 
 void ALIAS(char input[], char command[], string project)
 {
+    if(strncmp(command, "neogit", 6)) {
+        perror(ANSI_BACK_RED"invalid command!!"ANSI_RESET);
+        exit(1);
+    }
     char alias[MAX_LENGTH_STRING];
     sscanf(input, "alias.%s", alias);
 
@@ -356,6 +364,9 @@ void ALIAS(char input[], char command[], string project)
     fputs(command, NEW_ALIAS);
 
     fclose(NEW_ALIAS);  
+
+    printf("alias : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET" --- command : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET"\n", alias, command);
+    printf("alias set successfully for "ANSI_BOLD ANSI_MAGENTA"%s"ANSI_RESET" project!\n", project);
 }
 void GLOBAL_ALIAS(char input[], char command[])
 {
@@ -406,8 +417,22 @@ void RUN_ALIAS(char command[])
 
 void make_branch(char branchName[], Uint head)
 {
-    char branchAddress[100];
-    sprintf(branchAddress, "%s/.neogit/.BRANCHES/%s", IS_INITED(), branchName);
+    char branchs[MAX_LINE_LENGTH];
+    sprintf(branchs, "%s/.neogit/.BRANCHES", IS_INITED());
+    if(find_file(branchs, branchName)) {
+        printf(ANSI_BACK_RED"This branch name already exists in active Branchs!"ANSI_RESET"\n");
+        printf(ANSI_BACK_RED"Please choose another name for your branch!"ANSI_RESET"\n");
+        return;
+    }
+    char merged[MAX_LINE_LENGTH];
+    sprintf(merged, "%s/.neogit/.MERGED_BRANCHS", IS_INITED());
+    if(find_file(merged, branchName)) {
+        printf(ANSI_BACK_RED"This branch name was name of a merged branch!"ANSI_RESET"\n");
+        printf(ANSI_BACK_RED"Please choose another name for your branch!"ANSI_RESET"\n");
+        return;
+    }
+    char branchAddress[MAX_LENGTH_STRING];
+    sprintf(branchAddress, "%s/%s", branchs, branchName);
     mkdir(branchAddress, 0755);
     
     char head_commit[MAX_LENGTH_STRING];
@@ -451,6 +476,9 @@ void make_branch(char branchName[], Uint head)
     FILE* FIRST = fopen(first_commit, "w");
     fprintf(FIRST, "prev commit : %X\n", prev);
     fclose(FIRST);   
+
+    printf(ANSI_RED ANSI_BOLD"%s"ANSI_RESET" Branch created successfully!\n", branchName);
+    printf("Birth Commit ID of "ANSI_RED ANSI_BOLD"%s"ANSI_RESET" is "ANSI_CYAN"%X"ANSI_RESET"\n", branchName, head);
 }
 
 
@@ -511,7 +539,7 @@ void init() {
     char cwd[200];
     getcwd(cwd, sizeof(cwd));
     if (IS_INITED()) {
-        printf("noegit is already initialized in this folder!\n");
+        printf(ANSI_BACK_RED"noegit is already initialized in this folder!"ANSI_RESET"\n");
         return;
     }
 
@@ -725,11 +753,14 @@ string read_info_from_commit(Uint commit_id, string what_you_want)
 
 void ADD_FUNC(string input)
 {
-    char cwd[200];
-    getcwd(cwd, 200);
+    char cwd[MAX_LINE_LENGTH];
+    getcwd(cwd, MAX_LINE_LENGTH);
+
+    char unstage[MAX_LENGTH_STRING];
+    sprintf(unstage, "%s/.neogit/.UNSTAGED", IS_INITED());
 
     if (find_file(cwd, input) == 0) {
-        printf("No such a file or directory!\n");
+        printf(ANSI_BACK_RED"No such a file or directory!"ANSI_RESET"\n");
         return;
     }
     char check[MAX_LENGTH_STRING];
@@ -738,13 +769,25 @@ void ADD_FUNC(string input)
         char dest[MAX_LENGTH_STRING];
         sprintf(dest, "%s/.neogit/.STAGING_AREA%s", IS_INITED(), find_file_path(cwd, IS_INITED()));
         COPY_DIR(cwd, dest, input);
+        if(find_file(unstage, input)) {
+            char unstaged_directory[MAX_LENGTH_STRING];
+            sprintf(unstaged_directory, "%s/%s", unstage, input);  
+            remove_directory(unstaged_directory);
+        }
     } 
     else {
         char destination[MAX_LENGTH_STRING];
         sprintf(destination, "%s/.neogit/.STAGING_AREA%s", IS_INITED(), find_file_path(cwd, IS_INITED()));
 
         COPY_FILE(cwd, destination, input);
+        if(find_file(unstage,  input)) {
+            char unstaged_file[MAX_LENGTH_STRING];
+            sprintf(unstaged_file, "%s/%s", unstage, input);
+            remove(unstaged_file);
+        }
     }
+
+    printf(ANSI_CYAN"%s added to stagging area successfully and it is ready to commit!"ANSI_RESET"\n", input);
 }
 void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 {
@@ -752,7 +795,7 @@ void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
     sprintf(add_info, "%s/.neogit/.ADD_INFO", IS_INITED());
     DIR* ADD_INFO = opendir(add_info);
     if (ADD_INFO == NULL) {
-        perror("failed to open this folder!");
+        perror(ANSI_BACK_RED"failed to open this folder!"ANSI_RESET);
         return;
     }
     struct dirent* entry;
@@ -766,7 +809,10 @@ void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
     char add_txt[2 * MAX_LENGTH_STRING];
     sprintf(add_txt, "%s/add%d.txt", add_info, num_name);
     FILE* ADD_TXT = fopen(add_txt, "w");
-    if(!ADD_TXT) {perror("fopen failed in showCommitInfo()"); return;}
+    if(!ADD_TXT) {
+        perror(ANSI_BACK_RED"fopen failed in showCommitInfo()"ANSI_RESET);
+        return;
+    }
     for(int i = 0; i < number; i++) {
         fprintf(ADD_TXT, "%s\n", list[i]);
     }
@@ -817,8 +863,8 @@ void show_in_add(int depth, int cur, string source, string destination)
 void RESET_FUNC(char input[])
 {
 
-    char source[300];
-    char destination[300];
+    char source[MAX_LENGTH_STRING];
+    char destination[MAX_LENGTH_STRING];
     sprintf(source , "%s/.neogit/.STAGING_AREA", IS_INITED());
     sprintf(destination, "%s/.neogit/.UNSTAGED", IS_INITED());
 
@@ -830,18 +876,14 @@ void RESET_FUNC(char input[])
 
     if (check_is_dir(check)) {
         COPY_DIR(source, destination, input);
-        char rm[MAX_LENGTH_STRING];
-        sprintf(rm, "rm -rf %s/%s", source, input);
-        system(rm);
+        remove_directory(check);
     } 
     else {
         COPY_FILE(source, destination, input);
-        char rm[MAX_LENGTH_STRING];
-        sprintf(rm, "%s/%s", source, input);
-        remove(rm);
+        remove(check);
     }
 
-    printf("File successfully moved.\n");
+    printf(ANSI_CYAN"%s is unstage now!!"ANSI_RESET"\n", input);
 }
 
 void REDO_FUNC()
@@ -862,15 +904,16 @@ void REDO_FUNC()
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         if (check_is_dir(entry->d_name)) {
             COPY_DIR(unstage, stage, entry->d_name);
-            char command[500];
-            sprintf(command, "rm -rf %s/.neogit/.UNSTAGED/%s", IS_INITED(), entry->d_name);
-            system(command);
+            char command[MAX_LENGTH_STRING];
+            sprintf(command, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), entry->d_name);
+            remove_directory(command);
         } 
         else {
             COPY_FILE(unstage, stage, entry->d_name);
-            char command[500];
+            char command[MAX_LENGTH_STRING];
             sprintf(command, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), entry->d_name);
             remove(command);
+            printf(ANSI_CYAN"%s is now staged and ready to commit!"ANSI_RESET"\n", entry->d_name);
         }
     }
 
@@ -882,7 +925,7 @@ void UNDO_FUNC()
     sprintf(add_info, "%s/.neogit/.ADD_INFO", IS_INITED());
     DIR* ADD_INFO = opendir(add_info);
     if (ADD_INFO == NULL) {
-        perror("failed to open this folder!");
+        perror(ANSI_BACK_RED"failed to open this folder!"ANSI_RESET);
         return;
     }
     
@@ -912,7 +955,7 @@ void UNDO_FUNC()
 
 
     remove(last_add);
-    printf("successfull undo!\n");
+    printf(ANSI_CYAN"successfull undo!\n"ANSI_RESET);
 
 }
 
@@ -994,7 +1037,7 @@ void STATUS_FUNC_2(string unstage, string last_repo)
             sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
 
             if(strcmp(attribute(file_in_repo), attribute(file_in_unstage))) {
-                printf(ANSI_BACK_BLUE"file name : %s --- status : -T"ANSI_RESET"\n", entry->d_name);
+                printf(ANSI_FAINT"file name : %s --- status : -T"ANSI_RESET"\n", entry->d_name);
             }
             else if(compare_files(file_in_repo, file_in_unstage) == false) {
                 printf(ANSI_YELLOW"file name : %s --- status : -M"ANSI_RESET"\n", entry->d_name);
@@ -1029,7 +1072,7 @@ void STATUS_FUNC_1(string staging, string last_repo)
             sprintf(file_in_repo, "%s/%s", last_repo, entry->d_name);
 
             if(strcmp(attribute(file_in_repo), attribute(file_in_stage))) {
-                printf(ANSI_BLUE"file name : %s --- status : +T"ANSI_RESET"\n", entry->d_name);
+                printf(ANSI_FAINT"file name : %s --- status : +T"ANSI_RESET"\n", entry->d_name);
             }
             else if(compare_files(file_in_repo, file_in_stage) == false) {
                 printf(ANSI_YELLOW"file name : %s --- status : +M"ANSI_RESET"\n", entry->d_name);
@@ -1212,7 +1255,10 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
     fclose(COMMIT);
     fclose(HEAD);
     make_repo_on_commit(commit_id);
-    printf("your commit was successfull!\nCommit Date & Time : %s\nCommit ID : %X\nCommit Message : %s\n", cur_time, commit_id, commit_message);    
+    printf(ANSI_BLINK ANSI_UNDERLINE"your commit was successfull!"ANSI_RESET"\n");
+    printf(ANSI_GREEN"Commit Date & Time : %s\n", cur_time);
+    printf("Commit ID : %X\n", commit_id);
+    printf("Commit Message : %s"ANSI_RESET"\n", commit_message);  
 }
 void COMMIT_FUNC(string message)
 {
@@ -1290,6 +1336,8 @@ void SET_FUNC(string message, string shortcut)
     FILE* SHORTCUT = fopen(shrtct_path, "w");
     fputs(message, SHORTCUT);
     fclose(SHORTCUT);
+    printf(ANSI_BACK_BLUE"%s shortcut successfully is setted for <%s> message!"ANSI_RESET"\n", shortcut, message);
+    printf(ANSI_BACK_BLUE"you can use this shortcut now with -s flag"ANSI_RESET"\n");
 }
 void REMOVE_SHORTCUT(string shorutcut)
 {
@@ -1301,9 +1349,9 @@ void REMOVE_SHORTCUT(string shorutcut)
     ret = remove(filename);
 
     if(ret == 0) {
-        printf("Shortcut Message deleted successfully!\n");
+        printf(ANSI_CYAN"Shortcut Message deleted successfully!"ANSI_RESET"\n");
     } else {
-        printf("Error: unable to delete the Shortcut Message!\n");
+        printf(ANSI_BACK_RED"Error: unable to delete the Shortcut Message!"ANSI_RESET"\n");
     }
 }
 string find_message(string shortucut)
@@ -1434,6 +1482,8 @@ void BRANCH_CHECKOUT(string branch)
     FILE* CUR = fopen(current_commmit, "w");
     fprintf(CUR, "%X", head_id);
     fclose(CUR);
+
+    printf(ANSI_BOLD ANSI_CYAN"You are now on Head of %s"ANSI_RESET"\n", branch);
 }
 void COMMIT_CHECKOUT(Uint id)
 {   
@@ -1444,11 +1494,14 @@ void COMMIT_CHECKOUT(Uint id)
     fclose(CUR);
 
     change_folder(id);
+
+    printf("You are now in Commit "ANSI_BOLD ANSI_CYAN"%X"ANSI_RESET" on Branch : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET"!\n", id, read_info_from_commit(id, "branch"));
+    printf(ANSI_BOLD ANSI_BOLD "Please notice that you "ANSI_UNDERLINE ANSI_FAINT ANSI_RED"can not Commit"ANSI_RESET ANSI_BOLD ANSI_BOLD" anything until you Checkout to Head!"ANSI_RESET"\n");
 }
 void CHECKOUT(string input)
 {
     if(!EVERYTHING_IS_COMMITED()) {
-        perror("please first commit then checkout!");
+        perror(ANSI_BACK_RED"please first commit then checkout!"ANSI_RESET);
         exit(1);
     }
     char branch_dest[MAX_LENGTH_STRING];
@@ -1459,14 +1512,17 @@ void CHECKOUT(string input)
    
     if(find_file(branch_dest, input)) {
         BRANCH_CHECKOUT(input);
+        printf(ANSI_CYAN"Checkout was successfull\nyou are now on branch : %s"ANSI_RESET"\n", input);
     }
     else if(find_file(commit_dest, input)) {
         Uint id;
         sscanf(input, "%X", &id);
         COMMIT_CHECKOUT(id);
+        printf(ANSI_CYAN"Checkout was successfull\nyou are now on commit : %X"ANSI_RESET"\n", id);
     }
     else {
-        perror("Invalid inputs!\n");
+        printf(ANSI_BACK_RED"%s is not a commit id or branch name!!"ANSI_RESET"\n", input);
+        return;
     }
 }
 
@@ -1476,14 +1532,14 @@ void PRINT_LOG(int num_commit, string address)
 {
     
     FILE* fp = fopen(address, "r");
-    printf("-------start-------\n");
-    printf("commit %d :\n", num_commit);
+    printf(ANSI_YELLOW"--------------start--------------"ANSI_RESET"\n");
+    printf(ANSI_BLUE"commit %d :"ANSI_RESET"\n", num_commit);
     char line[MAX_LENGTH_STRING];
-    while(fgets(line, MAX_LENGTH_STRING, fp) != NULL) {
-        printf("%s", line);
+    while(fgets(line, MAX_LENGTH_STRING, fp)) {
+        printf(ANSI_FAINT"%s"ANSI_RESET, line);
     }
     fclose(fp);
-    printf("-------end-------\n\n");
+    printf(ANSI_YELLOW"---------------end---------------"ANSI_RESET"\n\n");
 }
 void LOG_FUNC(int num)
 {
@@ -1790,7 +1846,7 @@ void show_all_tags()
         char temp[100];
         strcpy(temp,  namelist[i]->d_name);
         temp[strlen(namelist[i]->d_name) - 4] = '\0';
-        printf("%s\n", temp);
+        printf(ANSI_CYAN ANSI_BOLD"%s"ANSI_RESET"\n", temp);
         free(namelist[i]);
     }
     free(namelist);
@@ -1805,7 +1861,7 @@ void show_tag_information(string tag_name)
     sprintf(tag_text, "%s.txt", tag_name);
 
     if(!find_file(tags,  tag_text)) {
-        perror("there is no tag with this tag-name!");
+        perror(ANSI_BACK_RED"there is no tag with this tag-name!"ANSI_RESET);
         return;
     }
     
@@ -1813,15 +1869,15 @@ void show_tag_information(string tag_name)
     sprintf(tag_address, "%s/%s", tags, tag_text);
     FILE* TAG = fopen(tag_address, "r");
     if(TAG == NULL) {
-        perror("failed to open tag file!");
+        perror(ANSI_BACK_RED"failed to open tag file!"ANSI_RESET);
         return;
     }
 
-    printf("\n"ANSI_BACK_GREEN"tag : %s"ANSI_RESET"\n", tag_name);
+    printf("\n"ANSI_CYAN ANSI_BOLD"tag : %s"ANSI_RESET"\n", tag_name);
     for(int i = 0; i < 4; i++) {
         char line[MAX_LENGTH_STRING];
         fgets(line, MAX_LENGTH_STRING, TAG);
-        printf("%s", line);
+        printf(ANSI_FAINT"%s"ANSI_RESET, line);
     }
 
     fclose(TAG);
@@ -1882,7 +1938,7 @@ void GREP(string file, string word, Uint commit_id, bool number)
     char check[MAX_LENGTH_STRING];
     sprintf(check, "%X", commit_id);
     if(!find_file(commits, check)) {
-        perror("\033[1;31mthis commit id does not exist!\033[0m");
+        perror(ANSI_BACK_RED"this commit id does not exist!"ANSI_RESET);
         return;
     }
     char cwd[MAX_LENGTH_STRING];
@@ -1892,7 +1948,7 @@ void GREP(string file, string word, Uint commit_id, bool number)
     
     FILE* FILE_ON_COMMIT = fopen(path_in_repo, "r");
     if(FILE_ON_COMMIT == NULL) {
-        perror("file does not exist in the current repository!");
+        perror(ANSI_BACK_RED"file does not exist in the current repository!"ANSI_RESET);
         return;
     }
     char line[MAX_LENGTH_STRING];
@@ -1907,11 +1963,11 @@ void GREP(string file, string word, Uint commit_id, bool number)
 void GREP_ANALYZE(char* input[], int arguments)
 {
     if(arguments < 4) {
-        perror("few inputs\nplease enter at least one file and a word.");
+        perror(ANSI_BACK_RED"few inputs"ANSI_RESET"\n"ANSI_BACK_RED"please enter at least one file and a word."ANSI_RESET);
         return;
     }
     if(strcmp(input[0], "-f") ||  strcmp(input[2], "-p")) {
-        perror("invalid inputs!");
+        perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
         return;
     }
     if(arguments == 4) {
@@ -1919,14 +1975,14 @@ void GREP_ANALYZE(char* input[], int arguments)
     }
     else if(arguments == 5) {
         if(strcmp(input[4], "-n")) {
-            perror("invalid inputs!");
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
             return;
         }
         GREP(input[1], input[3], find_head(), true);
     }
     else if(arguments == 6) {
         if(strcmp(input[4], "-c")) {
-            perror("invalid inputs!");
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
             return;
         }
         Uint commit_id;
@@ -1935,14 +1991,14 @@ void GREP_ANALYZE(char* input[], int arguments)
     }
     else if(arguments == 7) {
         if(strcmp(input[4], "-c") || strcmp(input[6], "-n")) {
-            perror("invalid inputs!");
+            perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
             return;
         }
         Uint commit_id;
         sscanf(input[5], "%X",  &commit_id);
         GREP(input[1], input[3], commit_id, true);
     } else {
-        perror("too many inputs!");
+        perror(ANSI_BACK_RED"too many inputs!"ANSI_RESET);
         return;
     }
 }
@@ -1950,16 +2006,6 @@ void GREP_ANALYZE(char* input[], int arguments)
 
 void REVERT(string message, Uint commit_id, bool commit)
 {
-    char commits[MAX_LENGTH_STRING];
-    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
-
-    char check[MAX_LENGTH_STRING];
-    sprintf(check, "%X",  commit_id);
-    if(!find_file(commits,  check)) {
-        perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
-        return;
-    }
-
     COMMIT_CHECKOUT(commit_id);
 
     char curr[MAX_LENGTH_STRING];
@@ -2007,7 +2053,7 @@ void REVERT(string message, Uint commit_id, bool commit)
         char temp_stage[MAX_LENGTH_STRING];
         sprintf(temp_stage, "%s/.neogit/.temp_stage", IS_INITED());
         int a = rename(stage, temp_stage);
-        if(a != 0) perror("ERROR: Failed to create temporary staging area");
+        if(a != 0) perror(ANSI_BACK_RED"ERROR: Failed to create temporary staging area"ANSI_RESET);
         mkdir(stage, 0755);
         while((entry = readdir(FOLDER)) != NULL) {
             if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".neogit") == 0) 
@@ -2027,10 +2073,24 @@ void REVERT(string message, Uint commit_id, bool commit)
         }
         remove_directory(stage);
         rename(temp_stage, stage);
+        
+        printf(ANSI_BLUE"Revert was successfull!"ANSI_RESET"\n");
+
     }
+
 }
 void CHECK_MERGE(string message, Uint commit_id, bool commit)
 {
+    char commits[MAX_LENGTH_STRING];
+    sprintf(commits, "%s/.neogit/.COMMITS", IS_INITED());
+
+    char check[MAX_LENGTH_STRING];
+    sprintf(check, "%X",  commit_id);
+    if(!find_file(commits,  check)) {
+        fprintf(stderr, ANSI_BACK_RED"There is no commit with this commit id!!"ANSI_RESET"\n");
+        return;
+    }
+
     string branch = read_info_from_commit(commit_id, "branch");
     printf("%s\n", branch);
     
@@ -2301,7 +2361,7 @@ void DIFF_FILE_ANALYZE(char* input[], int arguments)
         perror(ANSI_BACK_RED"invalid inputs!"ANSI_RESET);
     }
 }
-void COMPARE_COMMITS(string repo1, string repo2, string id1, string id2)
+void COMPARE_COMMITS(string repo1, string repo2, string id1, string id2, bool compare_files)
 {
     DIR* REPO_1 = opendir(repo1);
     struct dirent *entry; 
@@ -2315,10 +2375,10 @@ void COMPARE_COMMITS(string repo1, string repo2, string id1, string id2)
             sprintf(new_repo2, "%s/%s", repo2, entry->d_name);
             if(entry->d_type == DT_DIR) {
                 printf(ANSI_BACK_MAGENTA"parent : %s"ANSI_RESET"\n", entry->d_name);
-                COMPARE_COMMITS(new_repo1, new_repo2, id1, id2);
+                COMPARE_COMMITS(new_repo1, new_repo2, id1, id2, compare_files);
             } else {
-                if(is_text_file(new_repo1) && is_text_file(new_repo2))
-                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
+                if(is_text_file(new_repo1) && is_text_file(new_repo2) && compare_files)
+                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 0, (int)1e9);
             }
         }
         else {
@@ -2344,9 +2404,9 @@ void DIFF_COMMIT(string first, string second)
     char repo_on_commit_2[MAX_LENGTH_STRING];
     sprintf(repo_on_commit_1, "%s/.neogit/.REPO_ON_COMMIT/%s", IS_INITED(), first);
     sprintf(repo_on_commit_2, "%s/.neogit/.REPO_ON_COMMIT/%s", IS_INITED(),  second);
-
-    COMPARE_COMMITS(repo_on_commit_1, repo_on_commit_2, first, second);
-    COMPARE_COMMITS(repo_on_commit_2, repo_on_commit_1,  second, first);
+ 
+    COMPARE_COMMITS(repo_on_commit_1, repo_on_commit_2, first, second, true);
+    COMPARE_COMMITS(repo_on_commit_2, repo_on_commit_1,  second, first, false);
     
 
 }
@@ -2400,7 +2460,12 @@ void STASH_PUSH(string message)
     fclose(TEXT);
 
 
-    COMMIT_CHECKOUT(find_head());
+    BRANCH_CHECKOUT(find_branch());
+    printf(ANSI_BOLD ANSI_BOLD ANSI_BLUE"new stash is created!"ANSI_RESET"\n");
+    printf("This stash is created on "ANSI_YELLOW"%s"ANSI_RESET" Branch and "ANSI_YELLOW"%X"ANSI_RESET" Commit\n", find_branch(), find_head());
+    if(message) printf("Message : <"ANSI_YELLOW"%s"ANSI_RESET">\n", message);
+    else printf("No message provided for stash!\n");
+   
 }
 void STASH_LIST()
 {
@@ -2415,13 +2480,13 @@ void STASH_LIST()
     }
     closedir(STASHS);
     for(int i = 0; i < numStashs; i++) {
-        printf(ANSI_BLUE"stash index : %d"ANSI_RESET"\n", i);
+        printf("stash index : "ANSI_MAGENTA"%d"ANSI_RESET"\n", i);
         char text[2 * MAX_LENGTH_STRING];
         sprintf(text, "%s/%d/text.txt", stashs, i);
         FILE* INFO = fopen(text, "r");
         char line[MAX_LENGTH_STRING];
         while(fgets(line, MAX_LENGTH_STRING, INFO)) {
-            printf(ANSI_MAGENTA"%s"ANSI_RESET, line);
+            printf(ANSI_YELLOW"%s"ANSI_RESET, line);
         }
         fclose(INFO);
 
@@ -2447,7 +2512,7 @@ void compare_stash_and_commit(string repo1, string repo2, Uint commit_id, int st
                 compare_stash_and_commit(new_repo1, new_repo2, commit_id, stash_index, false);
             } else {
                 if(is_text_file(new_repo1) && is_text_file(new_repo2))
-                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 9, (int)1e9);
+                DIFF_FILE(new_repo1, new_repo2, 0, (int)1e9, 0, (int)1e9);
             }
         }
         else {
@@ -2575,6 +2640,8 @@ void STASH_POP(int index)
         sprintf(new_path, "%s/%d",  stashs, i);
         rename(old_path, new_path);
     }
+
+    printf("stash with "ANSI_YELLOW"%d"ANSI_RESET" index have been applied on your folder successfully and it is removed from stashs stack!\n");    
 }
 void STASH_BRANCH(string branchName, int index)
 {
@@ -2600,6 +2667,8 @@ void STASH_CLEAR()
     sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
     remove_directory(stashs);
     mkdir(stashs, 0755);
+    
+    printf(ANSI_ITALIC ANSI_MAGENTA"All of stashs are removed from stash stack successfully!"ANSI_RESET"\n");
 }
 void STASH_DROP(int index)
 {
@@ -2607,6 +2676,14 @@ void STASH_DROP(int index)
     sprintf(stashs, "%s/.neogit/.STASHS", IS_INITED());
     DIR* STASHS = opendir(stashs);
     struct dirent* entry;
+   
+   
+    char check[5];
+    sprintf(check, "%d", index); 
+    if(find_file(stashs, check) == 0) {
+        printf(ANSI_BACK_RED"There is no stash with this index!"ANSI_RESET"\n");
+        return;
+    }
     int numStashs = 0;
     while((entry = readdir(STASHS)) != NULL) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
@@ -2623,6 +2700,7 @@ void STASH_DROP(int index)
         sprintf(new_path, "%s/%d",  stashs, i);
         rename(old_path, new_path);
     }
+    printf("Stash with "ANSI_BOLD ANSI_BOLD ANSI_YELLOW"< %d >"ANSI_RESET" is dropped from the stash stack.\n", index);
 }
 void STASH_ANALYZE(char* input[], int arguments)
 {
@@ -2876,10 +2954,12 @@ bool making_merged_commit(Uint base, Uint merging, string branch1, string branch
     char temp_repo[MAX_LENGTH_STRING];
     sprintf(temp_repo, "%s/.neogit/.REPO_ON_COMMIT/temp_repo", IS_INITED());
     mkdir(temp_repo, 0755);
+    
     char base_repo[MAX_LENGTH_STRING];
     sprintf(base_repo, "%s/.neogit/.REPO_ON_COMMIT/%X", IS_INITED(), base);
+    
     DIR*  dp = opendir(base_repo);
-    printf("%s\n%s\n", temp_repo, base_repo);
+   
     struct dirent* entry; 
     
     while(entry = readdir(dp)) {
@@ -2920,8 +3000,8 @@ void remove_stashs_in_merge(string target_branch)
         FILE* info = fopen(text, "r");
         
         char line[MAX_LINE_LENGTH];
-        fgets(line , MAX_LINE_LENGTH, text);
-        fclose(text);
+        fgets(line , MAX_LINE_LENGTH, info);
+        fclose(info);
 
         char branch[50];
         sscanf(line, "stash was on branch : %[^\n]", branch);
@@ -2943,7 +3023,7 @@ void put_merge_information(string base_branch, Uint base_commit, string merge_br
     fclose(info);
 
 }
-void MERGE(string base_branch, string merging_branch)
+void MERGE(char base_branch[], char merging_branch[])
 {
     //check for valid branches
     char branchs[MAX_LENGTH_STRING];
@@ -2954,8 +3034,8 @@ void MERGE(string base_branch, string merging_branch)
     }
     // base branch for merge is always first one but if second one is master we shourld chanhge them 
     if(strcmp(merging_branch, "master") == 0) {
-        strcpy(merging_branch, base_branch);
-        strcpy(base_branch, "master");
+        printf(ANSI_BACK_RED"you can not merge master to another branch!"ANSI_RESET"\n");
+        return;
     }
     // get the HEAD of each branch
     Uint head_of_base = head_branch(base_branch);
@@ -2975,7 +3055,7 @@ void MERGE(string base_branch, string merging_branch)
     remove_stashs_in_merge(merging_branch);
     put_merge_information(base_branch, head_of_base, merging_branch, head_of_merging);
 
-    printf(ANSI_CYAN"%s branch merged to %s branch succesfully!"ANSI_RESET"\n",merging_branch, base_branch);
+    printf(ANSI_BOLD ANSI_CYAN"%s branch merged to %s branch succesfully!"ANSI_RESET"\n",merging_branch, base_branch);
 }
 
 
@@ -3231,16 +3311,35 @@ int indentaion_check(string file)
 
     else return 0;
 }
-int check_compile_time_errors(char *filename) {
-    
-    return 0;
-}
 int static_error_check(string file)
 {
     char* file_extension = strrchr(file, '.');
     if(strcasecmp(file_extension, ".c") == 0 || strcasecmp(file_extension, ".cpp") == 0) {
-        if(check_compile_time_errors(file)) return -1;
-        return 1;
+        char command[100];
+        sprintf(command, "cppcheck --enable=all %s 2>&1", file);
+
+        FILE *pipe = popen(command, "r");
+        if (!pipe) {
+            fprintf(stderr, "Error: popen() failed");
+            return 1;
+        }
+
+        char buffer[128];
+        int errorCount = 0;
+
+        while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            if (strstr(buffer, "error") != NULL) {
+                errorCount++;
+            }
+        }
+
+        pclose(pipe);
+
+        if (errorCount > 0) {
+            return -1;
+        } else {
+            return 1;
+        }
     }
     else return 0;
 }
@@ -3318,6 +3417,7 @@ int time_limit(string file_path)
     return 0;
 }
 
+
 bool PRECOMMIT_TEST(string file, bool print)
 {
     char filename[MAX_LENGTH_STRING];
@@ -3327,7 +3427,7 @@ bool PRECOMMIT_TEST(string file, bool print)
             break;
         }
     }
-    if(print) printf(ANSI_BACK_BLUE"%s"ANSI_RESET"\n", filename);
+    if(print) printf(ANSI_BOLD ANSI_YELLOW"%s"ANSI_RESET"\n", filename);
 
     bool result = true;
     char hooks[MAX_LENGTH_STRING];
@@ -3413,10 +3513,10 @@ void HOOKS_LIST()
     printf(ANSI_CYAN"eof-blank-space"ANSI_RESET"\n");
     printf(ANSI_CYAN"format-check"ANSI_RESET"\n");
     printf(ANSI_CYAN"balance-braces"ANSI_RESET"\n");
-    printf(ANSI_CYAN"indentaion-check"ANSI_RESET"\n");
+    printf(ANSI_CYAN"indentation-check"ANSI_RESET"\n");
     printf(ANSI_CYAN"static-error-check"ANSI_RESET"\n");
     printf(ANSI_CYAN"file-size-check"ANSI_RESET"\n");
-    printf(ANSI_CYAN"character-limt"ANSI_RESET"\n");
+    printf(ANSI_CYAN"character-limit"ANSI_RESET"\n");
     printf(ANSI_CYAN"time-limt"ANSI_RESET"\n");
 }
 void APPLIED_HOOKS()
@@ -3431,13 +3531,41 @@ void APPLIED_HOOKS()
     }
     closedir(HOOKS);
 }
+bool check_is_valid_hook(string hook_id)
+{
+    if(strcmp(hook_id, "todo-check") == 0) return true;
+    if(strcmp(hook_id, "eof-blank-space") == 0) return true;
+    if(strcmp(hook_id, "format-check") == 0) return true;
+    if(strcmp(hook_id, "balance-braces") == 0) return true;
+    if(strcmp(hook_id, "indentation-check") == 0) return true;
+    if(strcmp(hook_id, "static-error-check") == 0) return true;
+    if(strcmp(hook_id, "file-size-check") == 0) return true;
+    if(strcmp(hook_id, "character-limit") == 0) return true;
+    if(strcmp(hook_id, "time-limit") == 0) return true;
+
+    return false;
+    
+}
 void PRECOMMIT_ADD_HOOK(string hook_id)
 {
+    char hooks[MAX_LENGTH_STRING];
+    sprintf(hooks, "%s/.neogit/.HOOKS", IS_INITED());
     char hook[MAX_LENGTH_STRING];
-    sprintf(hook, "%s/.neogit/.HOOKS/%s", IS_INITED(), hook_id);
+    sprintf(hook, "%s/%s", hooks, hook_id);
 
+    if(find_file(hooks, hook_id)) {
+        printf(ANSI_BACK_RED"< %s > is already in list of applied hooks!"ANSI_RESET"\n", hook_id);
+        return;
+    }
+
+    if(check_is_valid_hook(hook_id) == false) {
+        printf(ANSI_BACK_RED"This is not a valid hook id!"ANSI_RESET"\n");
+        return;
+    }
     FILE *fp = fopen(hook, "w");
     fclose(fp);
+
+    printf(ANSI_BOLD ANSI_YELLOW"< %s >"ANSI_RESET" added to list of applied hooks successfully!\n", hook_id);
 }
 void PRECOMMIT_REMOVE_HOOK(char hook_id[])
 {
@@ -3447,7 +3575,10 @@ void PRECOMMIT_REMOVE_HOOK(char hook_id[])
         char hook[MAX_LENGTH_STRING];
         sprintf(hook, "%s/%s", hooks, hook_id);
         remove(hook);
+        printf(ANSI_BOLD ANSI_YELLOW"< %s >"ANSI_RESET" is successfully removed from list of applied hooks!\n", hook_id);
+        return;
     }
+    printf(ANSI_BACK_RED"< %s > is not a valid hook id!"ANSI_RESET"\n", hook_id);
 }
 void PRECOMMIT_ANALYZE(char* input[], int arguments)
 {
@@ -3753,9 +3884,9 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[2], "-n") == 0) {
             int depth;
             sscanf(argv[2], "%d", &depth);
-            char cwd[500];
-            getcwd(cwd, 500);
-            char stage[500];
+            char cwd[MAX_LINE_LENGTH];
+            getcwd(cwd, MAX_LINE_LENGTH);
+            char stage[MAX_LENGTH_STRING];
             sprintf(stage, "%s/.neogit/.STAGING_AREA", IS_INITED());
             show_in_add(depth, 0, cwd, stage);
         }
@@ -3763,9 +3894,11 @@ int main(int argc, char *argv[])
             REDO_FUNC();
         }
         else {
-            ADD_FUNC(argv[2]);
-            strcpy(added[num_added], argv[2]);
-            num_added++;
+            for(int i = 2; i < argc; i++) {
+                ADD_FUNC(argv[i]);
+                strcpy(added[num_added], argv[i]);
+                num_added++;
+            }
         }
         ADD_LIST(added, num_added);
     }
@@ -3779,7 +3912,6 @@ int main(int argc, char *argv[])
             }
         } else {
             RESET_FUNC(argv[2]);
-            char command[200];
             
         }
     }
@@ -3806,7 +3938,7 @@ int main(int argc, char *argv[])
             sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
 
             if(find_file(set_dir, shortcut) == 0) {
-                perror("this shortcut message does not exist!\n");
+                perror(ANSI_BACK_RED"this shortcut message does not exist!"ANSI_RESET);
                 return 1;
             }
             string message = find_message(argv[3]);
@@ -3815,22 +3947,26 @@ int main(int argc, char *argv[])
     }
     else if(strcmp(argv[1], "set") == 0) {
         if(argc != 6) {
-            perror("not enough arguments!");
+            perror(ANSI_BACK_RED"not enough arguments!"ANSI_RESET);
             return 1;
         }
         if(strcmp(argv[2], "-m") || strcmp(argv[4], "-s")) {
-            perror("invalid input!");
+            perror(ANSI_BACK_RED"invalid input!"ANSI_RESET);
+            return 1;
+        }
+        if(strlen(argv[3]) > 72) {
+            printf(ANSI_BACK_RED"Too long message!"ANSI_RESET"\n");
             return 1;
         }
         SET_FUNC(argv[3], argv[5]);
     }
     else if(strcmp(argv[1], "replace") == 0) {
         if(argc != 6) {
-            perror("not enough arguments!\n");
+            perror(ANSI_BACK_RED"not enough arguments!"ANSI_RESET);
             return 1;
         }
         if(strcmp(argv[2], "-m") || strcmp(argv[4], "-s")) {
-            perror("invalid input!");
+            perror(ANSI_BACK_RED"invalid input!"ANSI_RESET);
             return 1;
         }
         char shortcut[MAX_LENGTH_STRING];
@@ -3838,18 +3974,18 @@ int main(int argc, char *argv[])
         char set_dir[MAX_LENGTH_STRING];
         sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
         if(find_file(set_dir, shortcut) == 0) {
-            perror("this shortcut message does not exist!\n");
+            perror(ANSI_BACK_RED"This shortcut message does not exist!"ANSI_RESET);
             return 1;
         }
         SET_FUNC(argv[3], argv[5]);
     }
     else if(strcmp(argv[1], "remove") == 0) {
         if(argc != 4) {
-            perror("not enough arguments!\n");
+            perror(ANSI_BACK_RED"Not enough arguments!"ANSI_RESET);
             return 1;
         }
         if(strcmp(argv[2], "-s")) {
-            perror("invalid inputs!");
+            perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
             return 1;
         }
         char shortcut[MAX_LENGTH_STRING];
@@ -3859,7 +3995,7 @@ int main(int argc, char *argv[])
         sprintf(set_dir, "%s/.neogit/.COMMIT_SET", IS_INITED());
 
         if(find_file(set_dir, shortcut) == 0) {
-            perror("this shortcut message does not exist!\n");
+            perror(ANSI_BACK_RED"This shortcut message does not exist!"ANSI_RESET);
             return 1;
         }
 
@@ -3871,7 +4007,7 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[2], "-n") == 0) {
             if(argc != 4) {
-                perror("invlalid inputs!");
+                perror(ANSI_BACK_RED"Invlalid inputs!"ANSI_RESET);
                 return 1;
             }
             int num = 0;
@@ -3881,28 +4017,28 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[2], "-branch") == 0) {
             if(argc != 4) {
-                perror("invlalid inputs!");
+                perror(ANSI_BACK_RED"Invlalid inputs!"ANSI_RESET);
                 return 1;
             }
             LOG_BRANCH(argv[3]);
         }
         else if(strcmp(argv[2], "-author") == 0) {
             if(argc != 4) {
-                perror("invlalid inputs!");
+                perror(ANSI_BACK_RED"Invlalid inputs!"ANSI_RESET);
                 return 1;
             }
             LOG_AUTHOR(argv[3]);
         }
         else if(strcmp(argv[2], "-since") == 0) {
             if(argc != 4) {
-                perror("invalid inputs!");
+                perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
                 return 1;
             }
             LOG_TIME(argv[3], -1);
         }
         else if(strcmp(argv[2], "-before") == 0) {
             if(argc != 4) {
-                perror("invalid inputs!");
+                perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
                 return 1;
             }
             LOG_TIME(argv[3], 1);
@@ -3912,11 +4048,14 @@ int main(int argc, char *argv[])
                 LOG_SEARCH(argv[i]);
             }
         }
-        else {perror("invalid inputs!"); return 1;}
+        else {
+            perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET); 
+            return 1;
+        }
     }
     else if(strcmp(argv[1], "branch") == 0) {
         if(argc > 3) {
-            perror("not enough arguments!\n");
+            perror(ANSI_BACK_RED"Not enough arguments!"ANSI_RESET);
             return 1;
         }
         if (argc == 2) {
@@ -3928,7 +4067,7 @@ int main(int argc, char *argv[])
     }
     else if(strcmp(argv[1], "checkout") == 0) {
         if (argc != 3) {
-            perror("not enough arguments!\n");
+            perror(ANSI_BACK_RED"Not enough arguments!"ANSI_RESET);
             return 1;
         }
         if(strcmp(argv[2], "HEAD") == 0) {
@@ -3951,7 +4090,7 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[2], "show") == 0) {
             if(argc > 4) {
-                perror("invalid inputs!");
+                perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
                 return 1;
             }
             show_tag_information(argv[3]);
@@ -3960,7 +4099,7 @@ int main(int argc, char *argv[])
             TAG_ANALYZE(&argv[3], argc - 4);
         }
         else {
-            perror("invalid inputs!");
+            perror(ANSI_BACK_RED"Invalid inputs!"ANSI_RESET);
             return 1;
         }
     }
