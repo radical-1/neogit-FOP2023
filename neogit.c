@@ -317,6 +317,7 @@ void information(char model[], char input[], string project)
                 fputs(line, TEMP);
             }
         }
+        project[strlen(project) - 4] = '\0';
         printf(ANSI_CYAN"email is updated for %s project successfully!"ANSI_RESET"\n", project);
     }
 
@@ -3911,7 +3912,9 @@ int main(int argc, char *argv[])
                 RESET_FUNC(argv[i]);
             }
         } else {
-            RESET_FUNC(argv[2]);
+            for(int i = 2; i < argc; i++) {
+                RESET_FUNC(argv[i]);
+            }
             
         }
     }
