@@ -274,7 +274,7 @@ void information(char model[], char input[], string project)
     else if (strcmp(model, "user.email") == 0)
         MOD = EMAIL;
     else {
-        printf("INVALID INPUTS!\n");
+        printf(ANSI_BACK_RED"INVALID INPUTS!"ANSI_RESET"\n");
         return;
     }
 
@@ -303,7 +303,7 @@ void information(char model[], char input[], string project)
             }
         }
         project[strlen(project) - 4] = '\0';
-        printf(ANSI_CYAN"name is updated for %s project successfully!"ANSI_RESET"\n", project);
+        printf(ANSI_BOLD ANSI_MAGENTA"name"ANSI_RESET" is updated for "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET" project successfully!\n", project);
     }
     else if(MOD == EMAIL) {
         for (int i = 0; i < 4; i++) {
@@ -318,7 +318,7 @@ void information(char model[], char input[], string project)
             }
         }
         project[strlen(project) - 4] = '\0';
-        printf(ANSI_CYAN"email is updated for %s project successfully!"ANSI_RESET"\n", project);
+        printf(ANSI_BOLD ANSI_CYAN"email"ANSI_RESET" is updated for "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET" project successfully!\n", project);
     }
 
     fclose(INFO);
@@ -366,7 +366,7 @@ void ALIAS(char input[], char command[], string project)
 
     fclose(NEW_ALIAS);  
 
-    printf("alias : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET" --- command : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET"\n", alias, command);
+    printf("alias : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET"    ---    command : "ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET"\n", alias, command);
     printf("alias set successfully for "ANSI_BOLD ANSI_MAGENTA"%s"ANSI_RESET" project!\n", project);
 }
 void GLOBAL_ALIAS(char input[], char command[])
@@ -410,7 +410,7 @@ void RUN_ALIAS(char command[])
         }
 
     }
-    perror("INVALID INPUTS!");
+    perror(ANSI_BACK_RED"INVALID INPUTS!"ANSI_RESET);
     return;
 }
 
@@ -479,7 +479,7 @@ void make_branch(char branchName[], Uint head)
     fclose(FIRST);   
 
     printf(ANSI_RED ANSI_BOLD"%s"ANSI_RESET" Branch created successfully!\n", branchName);
-    printf("Birth Commit ID of "ANSI_RED ANSI_BOLD"%s"ANSI_RESET" is "ANSI_CYAN"%X"ANSI_RESET"\n", branchName, head);
+    printf("Birth Commit ID of "ANSI_MAGENTA ANSI_BOLD"%s"ANSI_RESET" is "ANSI_CYAN"%X"ANSI_RESET"\n", branchName, head);
 }
 
 
@@ -788,7 +788,7 @@ void ADD_FUNC(string input)
         }
     }
 
-    printf(ANSI_CYAN"%s added to stagging area successfully and it is ready to commit!"ANSI_RESET"\n", input);
+    printf(ANSI_CYAN ANSI_CYAN"%s"ANSI_RESET" added to stagging area successfully and it is ready to commit!\n", input);
 }
 void ADD_LIST(char list[][MAX_LENGTH_STRING], int number)
 {
@@ -849,9 +849,9 @@ void show_in_add(int depth, int cur, string source, string destination)
             
         } else {
             if(find_file(destination, entry->d_name) == 1)
-                printf(ANSI_CYAN"file : %s -- status : STAGED"ANSI_RESET"\n", entry->d_name);
+                printf("file : "ANSI_CYAN"%s"ANSI_RESET" -- status : "ANSI_CYAN"STAGED"ANSI_RESET"\n", entry->d_name);
             else
-                printf(ANSI_YELLOW"file : %s -- status : UNSTAGED"ANSI_RESET"\n", entry->d_name);
+                printf("file : "ANSI_YELLOW"%s"ANSI_RESET" -- status : "ANSI_YELLOW"UNSTAGED"ANSI_RESET"\n", entry->d_name);
             
         }
     }
@@ -884,7 +884,7 @@ void RESET_FUNC(char input[])
         remove(check);
     }
 
-    printf(ANSI_CYAN"%s is unstage now!!"ANSI_RESET"\n", input);
+    printf(ANSI_CYAN"%s"ANSI_RESET" is "ANSI_CYAN"UNSTAGE"ANSI_RESET" now!!\n", input);
 }
 
 void REDO_FUNC()
@@ -914,7 +914,7 @@ void REDO_FUNC()
             char command[MAX_LENGTH_STRING];
             sprintf(command, "%s/.neogit/.UNSTAGED/%s", IS_INITED(), entry->d_name);
             remove(command);
-            printf(ANSI_CYAN"%s is now staged and ready to commit!"ANSI_RESET"\n", entry->d_name);
+            printf(ANSI_BOLD ANSI_CYAN"%s"ANSI_RESET" is now "ANSI_BOLD ANSI_CYAN"staged"ANSI_RESET" and ready to commit!\n", entry->d_name);
         }
     }
 
@@ -956,7 +956,7 @@ void UNDO_FUNC()
 
 
     remove(last_add);
-    printf(ANSI_CYAN"successfull undo!\n"ANSI_RESET);
+    printf(ANSI_BLINK ANSI_YELLOW"successfull undo!\n"ANSI_RESET);
 
 }
 
@@ -1263,6 +1263,10 @@ void make_commit(Uint prev_commit, string branch, string commit_message, string 
 }
 void COMMIT_FUNC(string message)
 {
+    if(strlen(message) == 0) {
+        printf(ANSI_BACK_RED"Message is empty!!"ANSI_RESET"\n");
+        return;
+    }
     char current[MAX_LENGTH_STRING];
     sprintf(current, "%s/.neogit/CURRENT_COMMIT.txt", IS_INITED());
     FILE* CURRRENT = fopen(current, "r");
@@ -2642,7 +2646,7 @@ void STASH_POP(int index)
         rename(old_path, new_path);
     }
 
-    printf("stash with "ANSI_YELLOW"%d"ANSI_RESET" index have been applied on your folder successfully and it is removed from stashs stack!\n");    
+    printf("stash with "ANSI_YELLOW"%d"ANSI_RESET" index have been applied on your folder successfully and it is removed from stashs stack!\n", index);    
 }
 void STASH_BRANCH(string branchName, int index)
 {
@@ -3923,8 +3927,8 @@ int main(int argc, char *argv[])
     }
     else if(strcmp(argv[1], "commit") == 0) {
         if(strcmp(argv[2], "-m") == 0) {
-            if(argc > 4) {
-                printf("to many arguments!\n");
+            if(argc != 4) {
+                printf(ANSI_BACK_RED"Usage : neogit commit [-m Message] [-s (Shortcut Message)]!"ANSI_RESET"\n");
                 return 1;
             }
             if (strlen(argv[3]) > 72) {
